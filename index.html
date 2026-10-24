@@ -140,7 +140,7 @@ input:checked+.tog-track:before{transform:translateX(16px);}
 .upload-ico{font-size:38px;color:var(--nu);margin-bottom:10px;}
 .upload-title{font-size:15px;font-weight:600;margin-bottom:5px;}
 .upload-hint{font-size:13px;color:var(--text2);}
-input[type="text"],input[type="number"],input[type="date"],input[type="month"],select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 12px;font-size:14px;color:var(--text);font-family:var(--font);width:100%;outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
+input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="month"],select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 12px;font-size:14px;color:var(--text);font-family:var(--font);width:100%;outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
 input:focus,select:focus{border-color:var(--nu);}
 label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bottom:5px;}
 .fgrid{display:grid;gap:12px;margin-bottom:12px;}
@@ -227,17 +227,40 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
   .fc6 .span2{grid-column:1/-1;}
   .ed-row{grid-template-columns:1fr 110px 34px;}
 }
+/* ===== BLOQUEIO ===== */
+.lock{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px;}
+.lock.on{display:flex;}
+.lock-card{width:100%;max-width:340px;text-align:center;}
+.lock-card .logo-circle{width:56px;height:56px;font-size:18px;margin:0 auto 14px;}
+.lock-title{font-size:20px;font-weight:600;margin-bottom:4px;}
+.lock-sub{font-size:13px;color:var(--text2);margin-bottom:18px;}
+.lock-card input{text-align:center;font-size:18px;letter-spacing:2px;padding:12px;margin-bottom:10px;}
+.lock-err{color:var(--danger);font-size:13px;min-height:18px;margin-bottom:8px;}
+.lock-link{background:none;border:none;color:var(--text3);font-size:12px;margin-top:18px;cursor:pointer;text-decoration:underline;font-family:var(--font);}
+.pw-form{display:none;margin-top:12px;}
+.pw-form.on{display:block;}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 </style>
 </head>
 <body>
 <div class="toast-wrap" id="toastWrap"></div>
+<div class="lock" id="lockScreen">
+  <form class="lock-card" onsubmit="event.preventDefault();unlock();">
+    <div class="logo-circle">KS</div>
+    <div class="lock-title">Finanças</div>
+    <div class="lock-sub">Digite sua senha para entrar</div>
+    <input type="password" id="lockPw" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
+    <div class="lock-err" id="lockErr"></div>
+    <button class="btn btn-primary btn-full" id="lockBtn" type="submit">Entrar</button>
+    <button class="lock-link" type="button" onclick="forgotPw()">Esqueci a senha</button>
+  </form>
+</div>
 <div class="shell">
   <aside class="sidebar">
     <div class="logo-area">
       <div class="logo">
-        <div class="logo-circle">Nu</div>
+        <div class="logo-circle">KS</div>
         <div><div class="logo-text">Finanças</div><div class="logo-sub">Controle de gastos</div></div>
       </div>
     </div>
@@ -253,12 +276,13 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
     <div class="sidebar-foot">
       <div class="theme-row"><span>Modo escuro</span><label class="tog"><input type="checkbox" id="themeToggle" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label></div>
       <div class="storage-info" id="storageInfo">0 registros</div>
+      <button class="btn btn-outline btn-sm btn-full lock-btn" style="margin-top:10px;display:none" onclick="lockNow()">🔒 Bloquear agora</button>
     </div>
   </aside>
   <div class="content" id="mainContent">
     <div class="topbar mob-only">
       <div class="topbar-title" id="topbarTitle">Dashboard</div>
-      <div style="display:flex;gap:12px;align-items:center;"><label class="tog"><input type="checkbox" id="themeToggle2" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label><button onclick="go('config')" title="Config e backup" style="background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;">⚙</button></div>
+      <div style="display:flex;gap:12px;align-items:center;"><label class="tog"><input type="checkbox" id="themeToggle2" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label><button class="lock-btn" onclick="lockNow()" title="Bloquear" style="display:none;background:none;border:none;font-size:18px;cursor:pointer;">🔒</button><button onclick="go('config')" title="Config e backup" style="background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;">⚙</button></div>
     </div>
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page active">
@@ -427,6 +451,19 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
           <div><label class="lbl">Outra pessoa que usa o seu cartão</label><input type="text" id="cfgOutro" placeholder="Ex: Maria" onchange="renameOutro(this.value)"></div>
         </div>
       </div>
+      <div class="set-sec">Senha deste aparelho</div>
+      <div class="card">
+        <div class="set-row"><div><div class="set-label" id="pwStatus">Sem senha</div><div class="set-sub" id="pwSub">Qualquer pessoa com este aparelho pode abrir o app.</div></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><button class="btn btn-primary btn-sm" id="pwSetBtn" onclick="showPwForm()">Criar senha</button><button class="btn btn-danger btn-sm" id="pwDelBtn" style="display:none" onclick="removePw()">Remover</button></div></div>
+        <form class="pw-form" id="pwForm" onsubmit="event.preventDefault();savePw();">
+          <div class="fgrid fc2">
+            <div><label class="lbl">Nova senha (mín. 4 caracteres)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
+            <div><label class="lbl">Repita a senha</label><input type="password" id="pwNew2" autocomplete="new-password"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">Salvar senha</button> <button class="btn btn-outline btn-sm" type="button" onclick="pwForm.classList.remove('on')">Cancelar</button>
+          <div class="hint">Os dados deste aparelho ficam <strong>criptografados</strong> com a senha. O app bloqueia sozinho quando fica 1 minuto em segundo plano ou 10 minutos parado. A senha vale só para este aparelho: crie uma em cada um. Se esquecer, dá para apagar os dados do aparelho e importar o backup de novo.</div>
+        </form>
+      </div>
       <div class="set-sec">Backup e outros aparelhos</div>
       <div class="card">
         <div class="hint" style="margin:0 0 10px;">Os dados ficam guardados só neste navegador. Para usar no celular ou em outro computador: <strong>Salvar backup</strong> aqui, guarde o arquivo no OneDrive e, no outro aparelho, <strong>Importar backup</strong>. A importação junta os dados — nada é apagado.</div>
@@ -471,7 +508,7 @@ function loadDB(){try{const s=localStorage.getItem('nuf_v3');if(s)DB={...DB,...J
 function dataHash(){const t=JSON.stringify([DB.expenses,DB.plan,DB.config]);let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return h;}
 function saveDB(){
   const h=dataHash();if(h!==DB.hash){DB.hash=h;DB.savedAt=new Date().toISOString();}
-  try{localStorage.setItem('nuf_v3',JSON.stringify(DB));}catch(e){toast('Não consegui salvar neste navegador. Exporte um backup!');}
+  try{if(CRYPTO_KEY)queueEncSave();else localStorage.setItem('nuf_v3',JSON.stringify(DB));}catch(e){toast('Não consegui salvar neste navegador. Exporte um backup!');}
   const el=document.getElementById('storageInfo');if(el)el.textContent=DB.expenses.length+' registros';
   renderBackupBanner();
 }
@@ -823,6 +860,7 @@ function renderCfg(){
   document.getElementById('cfgAlertPct').value=DB.config.alertPct||80;
   document.getElementById('cfgVenc').value=DB.config.venc||6;
   document.getElementById('cfgOutro').value=DB.config.outro||'';
+  renderPwCfg();
   renderBackupInfo();
   const t3=document.getElementById('themeToggle3');if(t3)t3.checked=document.documentElement.getAttribute('data-theme')==='dark';
 }
@@ -982,10 +1020,70 @@ function applyTheme(dark){
   localStorage.setItem('nuf_theme',dark?'dark':'');
 }
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.getElementById('toastWrap').appendChild(t);requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('show')));setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},2400);}
-loadDB();ensurePlan();
+/* ===================== SENHA / CRIPTOGRAFIA =====================
+   Com senha, os dados ficam só em 'nuf_v3_enc' (AES-GCM, chave derivada da senha com PBKDF2).
+   A chave fica apenas na memória enquanto o app está desbloqueado. */
+const ENC='nuf_v3_enc',PBKDF2_IT=310000;
+let CRYPTO_KEY=null,SALT=null,saveChain=Promise.resolve(),hiddenAt=0,idleT=null;
+const b64=u=>btoa(String.fromCharCode(...u)),unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+function b64big(u){let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s);}
+async function deriveKey(pw,salt){const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:PBKDF2_IT,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+async function encWrite(json){const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},CRYPTO_KEY,new TextEncoder().encode(json)));
+  localStorage.setItem(ENC,JSON.stringify({v:1,salt:b64(SALT),iv:b64(iv),ct:b64big(ct)}));localStorage.removeItem('nuf_v3');}
+function queueEncSave(){const json=JSON.stringify(DB);saveChain=saveChain.then(()=>encWrite(json)).catch(()=>toast('Erro ao salvar com senha'));}
+function hasPw(){return !!localStorage.getItem(ENC);}
+function renderPwCfg(){const on=hasPw();
+  document.getElementById('pwStatus').textContent=on?'🔒 Protegido com senha':'Sem senha';
+  document.getElementById('pwSub').textContent=on?'Dados criptografados neste aparelho.':'Qualquer pessoa com este aparelho pode abrir o app.';
+  document.getElementById('pwSetBtn').textContent=on?'Trocar senha':'Criar senha';
+  document.getElementById('pwDelBtn').style.display=on?'':'none';
+  document.querySelectorAll('.lock-btn').forEach(b=>b.style.display=on?'':'none');}
+function showPwForm(){pwNew.value='';pwNew2.value='';pwForm.classList.add('on');pwNew.focus();}
+async function savePw(){
+  const a=pwNew.value,b=pwNew2.value;
+  if(a.length<4){toast('A senha precisa ter pelo menos 4 caracteres');return;}
+  if(a!==b){toast('As senhas não são iguais');return;}
+  if(!crypto.subtle){toast('Este navegador não permite criptografia aqui. Use o link do GitHub (https).');return;}
+  const had=hasPw();SALT=crypto.getRandomValues(new Uint8Array(16));CRYPTO_KEY=await deriveKey(a,SALT);
+  try{localStorage.setItem('nuf_lockinfo',JSON.stringify({pin:/^\d+$/.test(a)}));}catch(e){}
+  queueEncSave();await saveChain;pwForm.classList.remove('on');renderPwCfg();armIdle();
+  toast(had?'Senha trocada':'Senha criada! O app agora pede a senha ao abrir.');}
+async function removePw(){
+  if(!confirm('Remover a senha deste aparelho? Os dados voltam a ficar sem proteção.'))return;
+  await saveChain;CRYPTO_KEY=null;SALT=null;localStorage.removeItem(ENC);localStorage.removeItem('nuf_lockinfo');saveDB();renderPwCfg();toast('Senha removida');}
+async function lockNow(){if(!CRYPTO_KEY)return;await saveChain;location.reload();}
+function forgotPw(){
+  if(!confirm('Sem a senha não dá para abrir os dados deste aparelho.\n\nPosso APAGAR os dados deste aparelho para você importar o backup do OneDrive de novo. Continuar?'))return;
+  localStorage.removeItem(ENC);localStorage.removeItem('nuf_v3');localStorage.removeItem('nuf_lockinfo');location.reload();}
+let lockFails=0;
+async function unlock(){
+  const pw=lockPw.value,err=document.getElementById('lockErr'),btn=document.getElementById('lockBtn');if(!pw)return;
+  btn.disabled=true;btn.textContent='Abrindo…';err.textContent='';
+  try{const blob=JSON.parse(localStorage.getItem(ENC));const salt=unb64(blob.salt);const key=await deriveKey(pw,salt);
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(blob.iv)},key,unb64(blob.ct));
+    CRYPTO_KEY=key;SALT=salt;DB={...DB,...JSON.parse(new TextDecoder().decode(pt))};lockFails=0;
+    document.getElementById('lockScreen').classList.remove('on');lockPw.value='';startApp();
+  }catch(e){lockFails++;err.textContent='Senha incorreta';lockPw.value='';
+    if(lockFails>=5){err.textContent='Muitas tentativas. Aguarde 30 segundos.';await new Promise(r=>setTimeout(r,30000));}}
+  btn.disabled=false;btn.textContent='Entrar';lockPw.focus();
+}
+function armIdle(){clearTimeout(idleT);if(CRYPTO_KEY)idleT=setTimeout(lockNow,10*60*1000);}
+['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,armIdle,{passive:true}));
+document.addEventListener('visibilitychange',()=>{if(!CRYPTO_KEY)return;if(document.hidden)hiddenAt=Date.now();else if(hiddenAt&&Date.now()-hiddenAt>60000)lockNow();});
+function startApp(){
+  if(!DB.viewMonth)DB.viewMonth=curM();
+  ensurePlan();
+  document.getElementById('newDate').value=new Date().toISOString().slice(0,10);
+  saveDB();applyOutroLabels();popMonths();go('dashboard');renderPwCfg();armIdle();
+}
 if(localStorage.getItem('nuf_theme')==='dark')applyTheme(true);
-document.getElementById('newDate').value=new Date().toISOString().slice(0,10);
-saveDB();applyOutroLabels();popMonths();renderDash();
+if(hasPw()){
+  let info={};try{info=JSON.parse(localStorage.getItem('nuf_lockinfo')||'{}');}catch(e){}
+  if(info.pin)lockPw.setAttribute('inputmode','numeric');
+  document.getElementById('lockScreen').classList.add('on');setTimeout(()=>lockPw.focus(),50);
+}else{loadDB();startApp();}
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
