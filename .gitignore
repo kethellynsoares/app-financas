@@ -1,0 +1,10 @@
+# NUNCA versionar dados financeiros pessoais
+*.json
+!manifest.webmanifest
+*.csv
+*.ofx
+*.pdf
+*.xlsx
+*.xls
+*.et
+~$*

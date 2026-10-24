@@ -1,0 +1,64 @@
+# Finanças — app pessoal de controle do cartão
+
+App de uma página só (HTML + JS, sem servidor) para acompanhar a fatura do Nubank, separar o que é de outra pessoa que usa o cartão e planejar quanto sobra em cada mês.
+
+## O que vai para o git
+
+| Arquivo | Para que serve |
+|---|---|
+| `index.html` | O app inteiro |
+| `manifest.webmanifest` | Permite instalar o app na tela inicial do celular |
+| `sw.js` | Faz o app abrir mesmo sem internet |
+| `icon-192.png`, `icon-512.png` | Ícones |
+| `.gitignore` | Impede que dados financeiros entrem no repositório |
+| `README.md` | Este guia |
+
+**Nunca faça commit** de backups (`financas-backup-*.json`), CSVs, PDFs ou planilhas de fatura. O `.gitignore` já bloqueia esses arquivos. O código não tem nenhum dado pessoal: os seus dados entram pelo backup.
+
+## Publicar no GitHub Pages (uma vez)
+
+1. Crie uma conta em github.com (se ainda não tiver).
+2. Crie um repositório novo, por exemplo `financas`, **público**. O GitHub Pages gratuito só funciona em repositório público; isso não tem problema, porque só o código fica lá.
+3. Envie os arquivos desta pasta:
+   - **Pelo site:** "Add file → Upload files", arraste os 7 arquivos e clique em "Commit changes".
+   - **Pelo git:**
+     ```
+     git init
+     git add .
+     git commit -m "App de finanças"
+     git branch -M main
+     git remote add origin https://github.com/SEU-USUARIO/financas.git
+     git push -u origin main
+     ```
+4. No repositório: Settings → Pages → em "Branch" escolha `main` e a pasta `/ (root)` → Save.
+5. Em 1 ou 2 minutos o app fica disponível em `https://SEU-USUARIO.github.io/financas/`.
+
+## Primeiro uso em cada aparelho
+
+1. Abra o link do app.
+2. Vá em ⚙ Config → **Importar backup** e escolha o backup mais recente que está no OneDrive.
+3. **No celular:** no menu do navegador, toque em "Adicionar à tela inicial" (Android/Chrome) ou em Compartilhar → "Adicionar à Tela de Início" (iPhone/Safari). O app passa a abrir como um aplicativo.
+
+## Dia a dia
+
+- **Lançamentos do cartão:** no app do Nubank, vá em Cartão → Faturas → escolha a fatura → Exportar planilha e importe o CSV na tela **Importar**. Pode importar a fatura aberta várias vezes: lançamentos repetidos não duplicam. Mantenha o nome do arquivo que o Nubank dá (`Nubank_AAAA-MM-DD.csv`), porque é por ele que o app sabe de qual fatura se trata.
+- **Gastos fora do cartão** (Pix, dinheiro): lance na tela **Gastos**.
+- **De quem é cada gasto:** toque no selo "meu"/nome da outra pessoa para trocar.
+- **Planejamento:** mostra a sobra de cada mês e quanto a outra pessoa te deve.
+
+## Manter os aparelhos iguais (backup no OneDrive)
+
+Cada navegador guarda a sua própria cópia dos dados. A regra é simples:
+
+1. **Terminou de mexer num aparelho?** Toque em **Salvar backup**. Quando há alterações não salvas, aparece um aviso amarelo no início do app.
+   - No celular abre o "Compartilhar": escolha **OneDrive** → pasta Financeiro.
+   - No computador o arquivo vai para Downloads: mova para a pasta do OneDrive.
+2. **Vai usar outro aparelho?** Primeiro use **Importar backup** com o arquivo mais recente (o nome tem data e hora: `financas-backup-2026-10-24-1530.json`).
+
+A importação **junta** os dados: nada que está no aparelho é apagado. Planejamento e configurações vêm do lado que foi alterado por último.
+
+Cuidado: se você apagar um lançamento num aparelho, ele pode voltar quando você importar um backup antigo. Depois de apagar, salve um backup novo e importe esse backup nos outros aparelhos.
+
+## Atualizar o app
+
+Troque o `index.html` no repositório (upload ou `git commit` + `git push`). Os aparelhos pegam a versão nova na próxima vez que abrirem o app com internet. Atualizar o app não apaga os dados.
