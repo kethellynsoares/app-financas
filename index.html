@@ -417,7 +417,11 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
     </div>
     <!-- IMPORTAR -->
     <div id="page-importar" class="page">
-      <div class="page-hdr hide-mob"><div class="page-title">Importar CSV</div><div class="page-sub">Extrato Nubank</div></div>
+      <div class="page-hdr hide-mob"><div class="page-title">Importar</div><div class="page-sub">Nubank: sincronização automática ou CSV</div></div>
+      <div class="card">
+        <div class="set-row" style="border:none;padding:0;gap:12px;flex-wrap:wrap;"><div style="min-width:0;flex:1"><div class="set-label">Sincronizar com o Nubank</div><div class="set-sub" id="syncStatus">—</div></div><button class="btn btn-primary btn-sm" id="syncBtn" onclick="syncNubank()">⟳ Sincronizar agora</button></div>
+      </div>
+      <div class="or">— ou importe o CSV —</div>
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvFile').click()"
         ondragover="event.preventDefault();this.classList.add('drag')"
         ondragleave="this.classList.remove('drag')"
@@ -450,6 +454,16 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
           <div><label class="lbl">Dia de vencimento da fatura</label><input type="number" id="cfgVenc" value="6" min="1" max="31" oninput="saveConfig()"></div>
           <div><label class="lbl">Outra pessoa que usa o seu cartão</label><input type="text" id="cfgOutro" placeholder="Ex: Maria" onchange="renameOutro(this.value)"></div>
         </div>
+      </div>
+      <div class="set-sec">Sincronização com o Nubank</div>
+      <div class="card">
+        <div class="fgrid fc2">
+          <div><label class="lbl">Endereço da ponte</label><input type="url" id="cfgSyncUrl" placeholder="https://ponte-financas.SEU-NOME.workers.dev" onchange="saveSyncCfg()"></div>
+          <div><label class="lbl">Senha da ponte</label><input type="password" id="cfgSyncToken" autocomplete="off" onchange="saveSyncCfg()"></div>
+          <div><label class="lbl">Finais dos cartões de <span class="outroNome">outra pessoa</span></label><input type="text" id="cfgCartoesOutro" placeholder="Ex: 1234, 5678" onchange="saveSyncCfg()"></div>
+          <div><label class="lbl">Compras até esta data são de <span class="outroNome">outra pessoa</span></label><input type="date" id="cfgCorteOutro" onchange="saveSyncCfg()"></div>
+        </div>
+        <div class="hint">A ponte busca os lançamentos do cartão no banco (Open Finance) e guarda as chaves de acesso fora do app. Compras feitas nos cartões acima, ou até a data acima, entram como de <span class="outroNome">outra pessoa</span>. A senha da ponte fica só neste aparelho e não vai para o backup.</div>
       </div>
       <div class="set-sec">Senha deste aparelho</div>
       <div class="card">
@@ -545,6 +559,7 @@ function go(name){
   if(name==='categorias')renderCats();
   if(name==='comparar')renderCmp();
   if(name==='config')renderCfg();
+  if(name==='importar')renderSyncInfo();
   document.getElementById('mainContent').scrollTop=0;
 }
 function buildMSel(cid,active,cb){
@@ -599,7 +614,10 @@ function expRow(e,showDel){
     '</div>';
   return d;
 }
-function toggleDono(id){const e=DB.expenses.find(x=>x.id===id);if(!e)return;e.dono=mine(e)?OUTRO():'Eu';saveDB();go(curPage);toast(mine(e)?'Marcado como seu':'Marcado como de '+OUTRO());}
+function toggleDono(id){const e=DB.expenses.find(x=>x.id===id);if(!e)return;e.dono=mine(e)?OUTRO():'Eu';
+  // se for parcela, o Planejamento passa a usar o mesmo dono (e as próximas importações também)
+  const pm=e.name.match(/^(.*?)\s*-?\s*Parcela\s*(\d+)\s*\/\s*(\d+)/i);
+  if(pm&&DB.plan)DB.plan.parcelas.filter(p=>normN(p.nome)===normN(pm[1])&&Math.abs(p.valor-e.amount)<0.15&&p.total===+pm[3]).forEach(p=>p.dono=e.dono);saveDB();go(curPage);toast(mine(e)?'Marcado como seu':'Marcado como de '+OUTRO());}
 function delExp(id){DB.expenses=DB.expenses.filter(e=>e.id!==id);saveDB();go(curPage);toast('Removido');}
 function popMonths(){
   const ms=months();
@@ -860,6 +878,10 @@ function renderCfg(){
   document.getElementById('cfgAlertPct').value=DB.config.alertPct||80;
   document.getElementById('cfgVenc').value=DB.config.venc||6;
   document.getElementById('cfgOutro').value=DB.config.outro||'';
+  document.getElementById('cfgSyncUrl').value=DB.config.syncUrl||'';
+  document.getElementById('cfgSyncToken').value=DB.config.syncToken||'';
+  document.getElementById('cfgCartoesOutro').value=DB.config.cartoesOutro||'';
+  document.getElementById('cfgCorteOutro').value=DB.config.corteOutro||'';
   renderPwCfg();
   renderBackupInfo();
   const t3=document.getElementById('themeToggle3');if(t3)t3.checked=document.documentElement.getAttribute('data-theme')==='dark';
@@ -877,6 +899,7 @@ async function exportData(){
   const now=new Date(),pad=n=>String(n).padStart(2,'0');
   const name='financas-backup-'+now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes())+'.json';
   const out={...DB,exportedAt:now.toISOString(),app:'financas',versao:3};delete out.hash;delete out.exportedHash;
+  out.config={...out.config};delete out.config.syncToken; // a senha da ponte não vai para o backup
   const json=JSON.stringify(out);
   const done=()=>{DB.exportedHash=DB.hash;DB.lastExport=now.toISOString();saveDB();renderBackupInfo();toast('Backup salvo: '+name);};
   // No celular: abre o "Compartilhar" para salvar direto no OneDrive
@@ -939,6 +962,114 @@ function autoCat(n){n=n.toLowerCase();
   return 'Outros';
 }
 function autoRec(n){return /netflix|spotify|amazonprime|disney|hbo|youtube|globoplay|tim\*|gran educ|wellhub|academia|smart fit|mensalidade/.test(n.toLowerCase());}
+/* ===================== SINCRONIZAÇÃO NUBANK (Open Finance, via ponte) ===================== */
+// A ponte (Cloudflare Worker) guarda as chaves da Pluggy. O app só conhece o endereço e a senha da ponte.
+function cartoesOutro(){return String(DB.config.cartoesOutro||'').split(/[^0-9]+/).filter(x=>x.length>=3);}
+// "Loja 9/10" ou "Youse Auto*2215-09/24" -> {base, atual, total}
+function parcDesc(desc){const m=String(desc||'').match(/^(.*?)[\s\-*]*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);if(!m||!m[1].trim())return null;
+  const a=+m[2],t=+m[3];return (t>=2&&a>=1&&a<=t)?{base:m[1].trim(),atual:a,total:t}:null;}
+// Mesmo estabelecimento: um nome contém o outro (ex.: "Propig *Baterias Pe" e "PROPIG *BATERIAS PE LT")
+function similar(a,b){a=normN(a);b=normN(b);if(a.length<4||b.length<4)return a===b&&!!a;return a.includes(b)||b.includes(a);}
+function mesSync(t,billMap){return billMap[t.billId]||(t.previsao?String(t.previsao).slice(0,7):'')||addM(String(t.data).slice(0,7),1);}
+// Dono: 1) parcela que você já marcou no Planejamento  2) cartão da outra pessoa  3) compra até a data de corte  4) seu
+function donoSync(t,ctx){
+  if(ctx.parc){const pp=DB.plan.parcelas.find(p=>p.total===ctx.parc.total&&valorPerto(p.valor,ctx.valor)&&similar(p.nome,ctx.parc.base));if(pp)return isMine(pp)?'Eu':pp.dono.trim();}
+  if(t.cartao&&ctx.cartoes.some(c=>String(t.cartao).endsWith(c)))return OUTRO();
+  const corte=DB.config.corteOutro,dc=String(t.compra||t.data||'').slice(0,10);
+  if(corte&&dc&&dc<=corte)return OUTRO();
+  if(!ctx.cartoes.length&&ctx.cesN.has(normN(ctx.nome)))return ctx.cesN.get(normN(ctx.nome)); // sem cartões configurados: regra antiga
+  return 'Eu';
+}
+function valorPerto(a,b){return Math.abs(a-b)<=Math.max(0.5,Math.abs(b)*0.05);}
+function mergeParcelasSync(lines,ctx){
+  const used=new Set(),hoje=faturaAtual();let novos=0;
+  lines.sort((a,b)=>b.mesRef.localeCompare(a.mesRef)).forEach(l=>{ // mais recentes primeiro
+    const ex=DB.plan.parcelas.find(p=>!used.has(p.id)&&p.total===l.total&&valorPerto(p.valor,l.valor)&&similar(p.nome,l.nome)&&Math.abs(p.atual+diffM(p.mesRef,l.mesRef)-l.atual)<=1);
+    if(ex){if(diffM(ex.mesRef,l.mesRef)>=0){ex.mesRef=l.mesRef;ex.atual=l.atual;}used.add(ex.id);return;}
+    if(addM(l.mesRef,l.total-l.atual)<hoje)return; // já terminou antes da fatura atual: não entra no Planejamento
+    const dono=donoSync(l.t,{...ctx,parc:{base:l.nome,total:l.total},valor:l.valor,nome:l.nome});
+    const p={id:pid(),nome:l.nome,valor:l.valor,atual:l.atual,total:l.total,mesRef:l.mesRef,dono};
+    DB.plan.parcelas.push(p);used.add(p.id);novos++;
+  });
+  return novos;
+}
+// Junta os dados da ponte com os do app. Não apaga nada: só vincula, atualiza o mês e acrescenta.
+function applySync(d){
+  ensurePlan();
+  const billMap={};(d.faturas||[]).forEach(f=>{if(f.id&&f.venc)billMap[f.id]=String(f.venc).slice(0,7);});
+  const limite=faturaAtual(),cartoes=cartoesOutro(),minMes=Object.values(billMap).sort()[0]||'';
+  const recent=months().slice(0,3),myN=new Set(DB.expenses.filter(mine).map(e=>normN(e.name)));
+  const cesN=new Map(DB.expenses.filter(e=>!mine(e)&&recent.includes(e.month)&&!myN.has(normN(e.name))).map(e=>[normN(e.name),e.dono]));
+  const ctx={cartoes,cesN};
+  const byPid=new Map(DB.expenses.filter(e=>e.pid).map(e=>[e.pid,e]));
+  const livres=DB.expenses.filter(e=>!e.pid),usados=new Set(),ultimas={};
+  const r={novos:0,outro:0,vinculados:0,futuros:0,parcNovas:0};
+  const lista=(d.transacoes||[]).filter(t=>t&&t.id&&t.data&&!(t.tipo==='CREDIT'&&/^pagamento/i.test(t.desc||'')))
+    .sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  let seq=0;const base=Date.now()*1000;
+  lista.forEach(t=>{
+    const mes=mesSync(t,billMap),valor=Math.round((t.tipo==='CREDIT'?-Math.abs(+t.valor):Math.abs(+t.valor))*100)/100;
+    if(!valor)return;
+    let parc=null;
+    if(+t.totalParc>1&&+t.parcela>=1)parc={base:(parcDesc(t.desc)||{}).base||t.desc,atual:+t.parcela,total:+t.totalParc};
+    else if(valor>0)parc=parcDesc(t.desc);
+    if(mes>limite){r.futuros++;return;} // parcela futura: aparece quando a fatura dela abrir
+    if(minMes&&mes<minMes)return;        // mês anterior à fatura mais antiga que o banco devolve: viria incompleto
+    if(parc&&valor>0){ // agrupa as parcelas da mesma compra (mesmo nome, nº de parcelas e mês da 1ª parcela) e guarda a mais recente
+      const k=parc.total+'|'+addM(mes,-(parc.atual-1)),g=(ultimas[k]=ultimas[k]||[]);
+      const u=g.find(x=>similar(x.nome,parc.base)&&Math.abs(x.valor-valor)<=Math.max(1,valor*0.2));
+      if(!u)g.push({nome:parc.base,valor,atual:parc.atual,total:parc.total,mesRef:mes,t});
+      else if(parc.atual>u.atual)Object.assign(u,{nome:parc.base,valor,atual:parc.atual,mesRef:mes,t});}
+    if(byPid.has(t.id)){const e=byPid.get(t.id);if(e.month!==mes)e.month=mes;return;}
+    // Lançamento que já veio pelo CSV: mesma fatura, mesmo valor, data mais próxima
+    const dt=Date.parse(t.data);let best=null,bd=Infinity;
+    livres.forEach(e=>{if(usados.has(e)||e.month!==mes||Math.abs(e.amount-valor)>0.005)return;const dd=Math.abs(Date.parse(e.date)-dt);if(dd<bd){bd=dd;best=e;}});
+    if(best&&bd<=20*864e5){usados.add(best);best.pid=t.id;if(!best.card&&t.cartao)best.card=String(t.cartao);r.vinculados++;return;}
+    const nome=parc?parc.base+' - Parcela '+parc.atual+'/'+parc.total:String(t.desc||'Lançamento');
+    const dono=donoSync(t,{...ctx,parc,valor,nome});
+    DB.expenses.push({id:base+(seq++),pid:t.id,date:String(t.data).slice(0,10),name:nome,amount:valor,category:autoCat(nome),month:mes,recurring:dono==='Eu'&&autoRec(nome),dono,card:String(t.cartao||'')});
+    r.novos++;if(dono!=='Eu')r.outro++;
+  });
+  r.parcNovas=mergeParcelasSync(Object.values(ultimas).flat(),ctx);
+  return r;
+}
+function saveSyncCfg(){
+  DB.config.syncUrl=document.getElementById('cfgSyncUrl').value.trim();
+  DB.config.syncToken=document.getElementById('cfgSyncToken').value.trim();
+  DB.config.cartoesOutro=document.getElementById('cfgCartoesOutro').value.trim();
+  DB.config.corteOutro=document.getElementById('cfgCorteOutro').value;
+  saveDB();toast('Sincronização configurada');
+}
+function renderSyncInfo(){
+  const el=document.getElementById('syncStatus');if(!el)return;
+  if(!DB.config.syncUrl||!DB.config.syncToken){el.innerHTML='Preencha o endereço e a senha da ponte em <strong>Config → Sincronização com o Nubank</strong>.';return;}
+  const s=DB.sync;if(!s||!s.em){el.textContent='Ainda não sincronizado neste aparelho.';return;}
+  let txt='Última sincronização: '+fmtDT(s.em)+(s.banco?' • dados do banco de '+fmtDT(s.banco):'');
+  if(s.consentimento){const dias=Math.round((Date.parse(s.consentimento)-Date.now())/864e5);
+    txt+=' • autorização válida até '+new Date(s.consentimento).toLocaleDateString('pt-BR')+(dias<=30?' (renove no meu.pluggy.ai!)':'');}
+  el.textContent=txt;
+}
+async function syncNubank(){
+  const url=String(DB.config.syncUrl||'').trim().replace(/\/+$/,''),tok=String(DB.config.syncToken||'').trim();
+  if(!url||!tok){toast('Preencha o endereço e a senha da ponte em Config');go('config');return;}
+  const btn=document.getElementById('syncBtn'),st=document.getElementById('syncStatus');
+  btn.disabled=true;btn.textContent='Sincronizando…';st.textContent='Buscando os lançamentos no banco…';
+  try{
+    let res;try{res=await fetch(url+'/sync',{headers:{Authorization:'Bearer '+tok},cache:'no-store'});}
+    catch(e){throw new Error('Não consegui falar com a ponte. Confira a internet e o endereço em Config.');}
+    let d={};try{d=await res.json();}catch(e){}
+    if(!res.ok)throw new Error(d.erro||('A ponte respondeu com erro '+res.status));
+    const antes=JSON.stringify({e:DB.expenses,p:DB.plan});
+    const r=applySync(d);
+    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'');
+    if((r.novos||r.parcNovas)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
+      const b=JSON.parse(antes);DB.expenses=b.e;DB.plan=b.p;st.textContent='Cancelado: nada foi alterado.';return;}
+    DB.sync={em:new Date().toISOString(),banco:d.atualizadoEm||'',proxima:d.proximaAtualizacao||'',consentimento:d.consentimentoAte||''};
+    DB.viewMonth=faturaAtual();saveDB();popMonths();renderSyncInfo();
+    toast(r.novos||r.parcNovas?msg:'Tudo em dia: nenhum lançamento novo.');
+  }catch(e){st.textContent=e.message;toast(e.message);}
+  finally{btn.disabled=false;btn.textContent='⟳ Sincronizar agora';}
+}
 function loadDemo(){
   if(DB.expenses.length&&!confirm('A demonstração APAGA os seus '+DB.expenses.length+' lançamentos. Continuar?'))return;
   const demo=[
