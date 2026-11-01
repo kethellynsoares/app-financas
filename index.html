@@ -82,6 +82,10 @@ input:checked+.tog-track:before{transform:translateX(16px);}
 .alert.warn{display:flex;background:var(--warn-bg);color:var(--warn);}
 .alert.danger{display:flex;background:var(--danger-bg);color:var(--danger);}
 .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.metric-grid.g6{grid-template-columns:repeat(3,1fr);}
+.metric-card.clk{cursor:pointer;transition:border-color .15s,box-shadow .15s;}
+.metric-card.clk:hover{border-color:var(--nu);}
+.metric-card.on{border-color:var(--nu);box-shadow:inset 0 0 0 1px var(--nu);}
 .metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;}
 .m-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:5px;}
 .m-val{font-size:19px;font-weight:600;font-family:var(--mono);letter-spacing:-.5px;}
@@ -289,18 +293,20 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
       <div class="page-hdr hide-mob"><div class="page-title">Dashboard</div><div class="page-sub" id="dashSub">—</div></div>
       <div id="backupBanner" class="alert warn" style="display:none;justify-content:space-between;gap:10px;flex-wrap:wrap;"><span></span><button class="btn btn-primary btn-sm" onclick="exportData()">Salvar backup</button></div>
       <div id="alertEl" class="alert"></div>
-      <div class="metric-grid">
-        <div class="metric-card"><div class="m-label">Limite</div><div class="m-val purple" id="mLimite">—</div><div class="m-sub">mensal</div></div>
-        <div class="metric-card"><div class="m-label">Meus gastos</div><div class="m-val danger" id="mGasto">—</div><div class="m-sub" id="mGastoSub">—</div></div>
-        <div class="metric-card"><div class="m-label">Disponível</div><div class="m-val ok" id="mDisp">—</div><div class="m-sub" id="mDispSub">—</div></div>
-        <div class="metric-card"><div class="m-label" id="mRecLbl">De outra pessoa</div><div class="m-val" style="color:var(--warn)" id="mRec">—</div><div class="m-sub" id="mRecSub">—</div></div>
+      <div class="metric-grid g6" id="dashCards">
+        <div class="metric-card clk" data-f="todos" onclick="setDashF('todos')" title="Ver a fatura inteira"><div class="m-label">Limite</div><div class="m-val purple" id="mLimite">—</div><div class="m-sub">mensal • ver fatura inteira</div></div>
+        <div class="metric-card clk" data-f="meus" onclick="setDashF('meus')" title="Ver só os meus"><div class="m-label">Meus gastos</div><div class="m-val danger" id="mGasto">—</div><div class="m-sub" id="mGastoSub">—</div></div>
+        <div class="metric-card clk" data-f="todos" onclick="setDashF('todos')" title="Ver a fatura inteira"><div class="m-label">Disponível</div><div class="m-val ok" id="mDisp">—</div><div class="m-sub" id="mDispSub">—</div></div>
+        <div class="metric-card clk" data-f="outro" onclick="setDashF('outro')" title="Ver só os dele"><div class="m-label" id="mRecLbl">De outra pessoa</div><div class="m-val" style="color:var(--warn)" id="mRec">—</div><div class="m-sub" id="mRecSub">—</div></div>
+        <div class="metric-card clk" data-f="fixos" onclick="setDashF('fixos')" title="Ver os gastos fixos"><div class="m-label">Fixos do mês</div><div class="m-val danger" id="mFix">—</div><div class="m-sub" id="mFixSub">—</div></div>
+        <div class="metric-card clk" data-f="assin" onclick="setDashF('assin')" title="Ver as assinaturas"><div class="m-label">Assinaturas</div><div class="m-val" style="color:#f59e0b" id="mAss">—</div><div class="m-sub" id="mAssSub">—</div></div>
       </div>
       <div class="prog-card">
         <div class="prog-hdr"><span class="prog-title">Uso do limite</span><span class="prog-pct" id="progPct">0%</span></div>
         <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
         <div class="prog-labels"><span id="progL">—</span><span id="progR">—</span></div>
       </div>
-      <div class="sec-hdr"><div class="sec-title">Gastos do mês</div><div class="month-sel" id="dashMonthSel"></div></div>
+      <div class="sec-hdr"><div class="sec-title" id="dashListTitle">Gastos do mês</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div class="month-sel" id="dashMonthSel"></div><button class="btn btn-outline btn-sm" onclick="exportDashXlsx()" title="Exportar a lista abaixo para Excel">⬇ Excel</button></div></div>
       <div class="exp-list" id="dashList"><div class="empty">Importe um CSV ou adicione gastos manualmente.</div></div>
       <div id="dashOutro" style="margin-top:18px;"></div>
     </div>
@@ -590,14 +596,61 @@ function renderDash(){
   if(pct>=100){alertEl.className='alert danger';alertEl.textContent='⚠ Limite estourado! '+brl(total-lim)+' acima.';}
   else if(pct>=ap){alertEl.className='alert warn';alertEl.textContent='⚠ '+pct+'% do limite usado. Restam '+brl(disp)+'.';}
   else alertEl.className='alert';
-  const list=document.getElementById('dashList');list.innerHTML='';
-  if(!exps.length)list.innerHTML='<div class="empty">Nenhum gasto seu neste mês.</div>';
-  exps.slice().sort((a,b)=>b.amount-a.amount).forEach(e=>list.appendChild(expRow(e,true)));
   document.getElementById('mRecLbl').textContent='De '+OUTRO();
+  // Fixos (do Planejamento) e assinaturas (lançamentos seus marcados como recorrentes)
+  ensurePlan();const fixos=DB.plan.fixos||[],fixT=sumV(fixos),fixCard=fixos.filter(x=>/no cart[aã]o/i.test(x.nome)).reduce((s,x)=>s+(+x.valor||0),0);
+  document.getElementById('mFix').textContent=brl(fixT);
+  document.getElementById('mFixSub').textContent=fixos.length?fixos.length+' itens • '+brl(fixT-fixCard)+' fora do cartão':'cadastre no Planejamento';
+  const ass=exps.filter(e=>e.recurring),assT=ass.reduce((s,e)=>s+e.amount,0);
+  document.getElementById('mAss').textContent=brl(assT);
+  document.getElementById('mAssSub').textContent=ass.length?ass.length+' no cartão este mês':'nenhuma neste mês';
+  document.querySelectorAll('#dashCards .metric-card').forEach(c=>c.classList.toggle('on',c.dataset.f===DASHF));
+  const tit={meus:'Meus gastos do mês',todos:'Fatura inteira do mês',outro:'Gastos de '+OUTRO()+' no mês',fixos:'Gastos fixos mensais',assin:'Assinaturas do mês'}[DASHF];
+  document.getElementById('dashListTitle').textContent=tit;
+  const list=document.getElementById('dashList');list.innerHTML='';
   const dc=document.getElementById('dashOutro');dc.innerHTML='';dc.className='';
-  if(ces.length){
-    dc.innerHTML='<div class="ces-hdr" onclick="this.parentNode.classList.toggle(\'ces-open\')"><span>De '+esc(OUTRO())+' — '+ces.length+' lançamentos (toque para ver)</span><span style="font-family:var(--mono)">'+brl(cesT)+'</span></div><div class="exp-list ces-body"></div>';
-    const b=dc.querySelector('.ces-body');ces.slice().sort((a,b)=>b.amount-a.amount).forEach(e=>b.appendChild(expRow(e,true)));
+  if(DASHF==='fixos'){
+    if(!fixos.length){list.innerHTML='<div class="empty">Nenhum gasto fixo cadastrado. Adicione em Planejamento.</div>';return;}
+    fixos.slice().sort((a,b)=>(+b.valor||0)-(+a.valor||0)).forEach(x=>{const d=document.createElement('div');d.className='exp-row';
+      d.innerHTML='<div class="exp-ico" style="background:rgba(239,68,68,.12)">🏠</div><div class="exp-info"><div class="exp-name">'+esc(x.nome)+'</div><div class="exp-meta"><span>todo mês</span></div></div><div class="exp-right"><div class="exp-amt" style="color:var(--danger)">'+brl(+x.valor||0)+'</div></div>';
+      d.style.cursor='pointer';d.onclick=()=>go('plano');list.appendChild(d);});
+    return;
+  }
+  const lst=dashLista(all);
+  if(!lst.length)list.innerHTML='<div class="empty">'+({meus:'Nenhum gasto seu neste mês.',todos:'Nenhum lançamento neste mês.',outro:'Nada de '+esc(OUTRO())+' neste mês.',assin:'Nenhuma assinatura neste mês. Marque um gasto como recorrente em Gastos.'}[DASHF])+'</div>';
+  lst.slice().sort((a,b)=>b.amount-a.amount).forEach(e=>list.appendChild(expRow(e,true)));
+}
+// Filtro da lista do Dashboard: clicar num card mostra os lançamentos dele (clicar de novo volta para "meus")
+var DASHF='meus';
+function setDashF(f){DASHF=(DASHF===f&&f!=='meus')?'meus':f;renderDash();}
+function dashLista(all){return DASHF==='todos'?all:DASHF==='outro'?all.filter(e=>!mine(e)):DASHF==='assin'?all.filter(e=>mine(e)&&e.recurring):all.filter(mine);}
+// Exporta para Excel (.xlsx) a lista que está na tela. Se a biblioteca não carregar (sem internet), exporta CSV que o Excel abre.
+function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>window.XLSX?ok(window.XLSX):no();s.onerror=no;document.head.appendChild(s);});}
+async function exportDashXlsx(){
+  const ym=DB.viewMonth,quem={meus:'Meus',todos:'Fatura',outro:normN(OUTRO()).replace(/[^a-z0-9]+/g,'')||'Outro',fixos:'Fixos',assin:'Assinaturas'}[DASHF];
+  const nomeArq=quem.charAt(0).toUpperCase()+quem.slice(1)+'_'+(DASHF==='fixos'?'mensal':'fatura_'+ym);
+  const dBR=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:'';};
+  let head,rows;
+  if(DASHF==='fixos'){head=['Gasto fixo','Valor (R$)'];rows=(DB.plan.fixos||[]).map(x=>[x.nome,+(+x.valor||0).toFixed(2)]);}
+  else{head=['Data','Estabelecimento','Valor (R$)','Cartão (final)','De quem','Categoria'];
+    rows=dashLista(DB.expenses.filter(e=>e.month===ym)).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)))
+      .map(e=>[dBR(e.date),e.name,+(+e.amount).toFixed(2),e.card||'',mine(e)?'Eu':e.dono,e.category||'']);}
+  if(!rows.length){toast('Nada para exportar nesta lista');return;}
+  const vi=head.indexOf('Valor (R$)'),tot=Math.round(rows.reduce((s,r)=>s+r[vi],0)*100)/100;
+  const totRow=head.map((_,i)=>i===vi?tot:i===vi-1?'TOTAL':'');
+  const titulo=document.getElementById('dashListTitle').textContent+(DASHF==='fixos'?'':' — fatura '+fmtM(ym));
+  try{
+    const X=await loadXLSX();
+    const ws=X.utils.aoa_to_sheet([[titulo],[],head,...rows,totRow]);
+    ws['!cols']=head.map((h,i)=>({wch:i===1||(DASHF==='fixos'&&i===0)?42:14}));
+    for(let r=3;r<rows.length+4;r++){const c=ws[X.utils.encode_cell({r,c:vi})];if(c){c.t='n';c.z='#,##0.00';}}
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,quem.slice(0,31));
+    X.writeFile(wb,nomeArq+'.xlsx');toast('Excel exportado: '+nomeArq+'.xlsx');
+  }catch(err){
+    const q=v=>{v=String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+    const csv='\ufeff'+[head,...rows,totRow].map(r=>r.map(v=>typeof v==='number'?v.toFixed(2).replace('.',','):q(v)).join(';')).join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=nomeArq+'.csv';document.body.appendChild(a);a.click();a.remove();
+    toast('Sem internet para gerar .xlsx: exportei em CSV (abre no Excel)');
   }
 }
 function expRow(e,showDel){
