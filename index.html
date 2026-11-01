@@ -965,7 +965,22 @@ async function exportData(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();done();
 }
 function clearAll(){if(!confirm('Apagar TODOS os dados?'))return;DB.expenses=[];saveDB();toast('Apagado.');go('dashboard');}
-function handleCSV(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>importCSV(e.target.result,f.name);r.readAsText(f,'UTF-8');input.value='';}
+function handleCSV(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const t=e.target.result;if(isPlanoCSV(t))importPlanoCSV(t);else importCSV(t,f.name);};r.readAsText(f,'UTF-8');input.value='';}
+// CSV de planejamento: colunas Tipo;Descrição;Valor  (Tipo = Entrada ou Fixo). Atualiza itens de mesmo nome e acrescenta os novos.
+function isPlanoCSV(t){return /^\ufeff?\s*"?tipo"?\s*[;,\t]/i.test(String(t));}
+function importPlanoCSV(t){
+  const linhas=String(t).replace(/^\ufeff/,'').split(/\r?\n/).filter(l=>l.trim());
+  const sep=linhas[0].includes(';')?';':linhas[0].includes('\t')?'\t':',';
+  const cel=l=>{const out=[];let cur='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===sep&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out.map(x=>x.trim());};
+  const num=v=>{v=String(v).replace(/[R$\s]/g,'');if(/,\d{1,2}$/.test(v))v=v.replace(/\./g,'').replace(',','.');return parseFloat(v);};
+  ensurePlan();let novos=0,atual=0,ignor=0;
+  linhas.slice(1).forEach(l=>{const[tipo,nome,valor]=cel(l);const v=num(valor);
+    const kind=/^entrada/i.test(tipo||'')?'entradas':/^fix/i.test(tipo||'')?'fixos':null;
+    if(!kind||!nome||isNaN(v)){ignor++;return;}
+    const ex=DB.plan[kind].find(x=>normN(x.nome)===normN(nome)&&String(x.nome).trim().toLowerCase()===nome.toLowerCase());
+    if(ex){ex.valor=v;atual++;}else{DB.plan[kind].push({id:pid(),nome,valor:v});novos++;}});
+  saveDB();toast('Planejamento: '+novos+' novo(s), '+atual+' atualizado(s)'+(ignor?', '+ignor+' linha(s) ignorada(s)':''));go('plano');
+}
 function handleDrop(ev){ev.preventDefault();document.getElementById('uploadZone').classList.remove('drag');const f=ev.dataTransfer.files[0];if(!f||!f.name.endsWith('.csv')){toast('Envie um .csv');return;}const r=new FileReader();r.onload=e=>importCSV(e.target.result,f.name);r.readAsText(f,'UTF-8');}
 function csvSplit(line){const out=[];let cur='',q=false;for(const ch of line){if(ch==='"'){q=!q;continue;}if(ch===','&&!q){out.push(cur);cur='';continue;}cur+=ch;}out.push(cur);return out.map(x=>x.trim());}
 function parseVal(v){v=String(v||'').replace(/[R$\s]/g,'');if(/,\d{1,2}$/.test(v))v=v.replace(/\./g,'').replace(',','.');return parseFloat(v);}
