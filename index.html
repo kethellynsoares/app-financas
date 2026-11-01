@@ -614,7 +614,7 @@ function expRow(e,showDel){
     '</div>';
   return d;
 }
-function toggleDono(id){const e=DB.expenses.find(x=>x.id===id);if(!e)return;e.dono=mine(e)?OUTRO():'Eu';
+function toggleDono(id){const e=DB.expenses.find(x=>x.id===id);if(!e)return;e.dono=mine(e)?OUTRO():'Eu';e.manual=true;
   // se for parcela, o Planejamento passa a usar o mesmo dono (e as próximas importações também)
   const pm=e.name.match(/^(.*?)\s*-?\s*Parcela\s*(\d+)\s*\/\s*(\d+)/i);
   if(pm&&DB.plan)DB.plan.parcelas.filter(p=>normN(p.nome)===normN(pm[1])&&Math.abs(p.valor-e.amount)<0.15&&p.total===+pm[3]).forEach(p=>p.dono=e.dono);saveDB();go(curPage);toast(mine(e)?'Marcado como seu':'Marcado como de '+OUTRO());}
@@ -1004,9 +1004,11 @@ function applySync(d){
   const byPid=new Map(DB.expenses.filter(e=>e.pid).map(e=>[e.pid,e]));
   const livres=DB.expenses.filter(e=>!e.pid),usados=new Set(),ultimas={};
   const r={novos:0,outro:0,vinculados:0,futuros:0,parcNovas:0,reclass:0};
-  // Lançamento já existente comprado num cartão da outra pessoa e ainda marcado como seu: passa para ela (não mexe nos demais)
   const doCartaoOutro=t=>!!t.cartao&&cartoes.some(c=>String(t.cartao).endsWith(c));
-  const reclass=(e,t)=>{if(!e.card&&t.cartao)e.card=String(t.cartao);if(mine(e)&&doCartaoOutro(t)){e.dono=OUTRO();e.recurring=false;r.reclass++;}};
+  const corte=DB.config.corteOutro||'';
+  const antesDoCorte=t=>{const dc=String(t.compra||t.data||'').slice(0,10);return !!corte&&!!dc&&dc<=corte;};
+  // Reaplica as regras de cartão e data de corte nos lançamentos já existentes. Não mexe nos que você trocou à mão (selo).
+  const reclass=(e,t)=>{if(!e.card&&t.cartao)e.card=String(t.cartao);if(!e.manual&&mine(e)&&(doCartaoOutro(t)||antesDoCorte(t))){e.dono=OUTRO();e.recurring=false;r.reclass++;}};
   const lista=(d.transacoes||[]).filter(t=>t&&t.id&&t.data&&!(t.tipo==='CREDIT'&&/^pagamento/i.test(t.desc||'')))
     .sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   let seq=0;const base=Date.now()*1000;
@@ -1064,7 +1066,7 @@ async function syncNubank(){
     if(!res.ok)throw new Error(d.erro||('A ponte respondeu com erro '+res.status));
     const antes=JSON.stringify({e:DB.expenses,p:DB.plan});
     const r=applySync(d);
-    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'')+(r.reclass?', '+r.reclass+' lançamento(s) existente(s) passado(s) para '+OUTRO()+' pelo cartão':'');
+    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'')+(r.reclass?', '+r.reclass+' lançamento(s) existente(s) passado(s) para '+OUTRO()+' (cartão ou data de corte)':'');
     if((r.novos||r.parcNovas||r.reclass)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
       const b=JSON.parse(antes);DB.expenses=b.e;DB.plan=b.p;st.textContent='Cancelado: nada foi alterado.';return;}
     DB.sync={em:new Date().toISOString(),banco:d.atualizadoEm||'',proxima:d.proximaAtualizacao||'',consentimento:d.consentimentoAte||''};
