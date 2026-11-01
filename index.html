@@ -83,6 +83,10 @@ input:checked+.tog-track:before{transform:translateX(16px);}
 .alert.danger{display:flex;background:var(--danger-bg);color:var(--danger);}
 .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
 .metric-grid.g6{grid-template-columns:repeat(3,1fr);}
+.busca-wrap{margin-bottom:10px;}
+input.busca{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;font-size:14px;color:var(--text);font-family:var(--font);outline:none;}
+input.busca:focus{border-color:var(--nu);}
+.busca-res{font-size:12px;color:var(--text3);margin-top:5px;min-height:0;}
 .metric-card.clk{cursor:pointer;transition:border-color .15s,box-shadow .15s;}
 .metric-card.clk:hover{border-color:var(--nu);}
 .metric-card.on{border-color:var(--nu);box-shadow:inset 0 0 0 1px var(--nu);}
@@ -307,6 +311,7 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
         <div class="prog-labels"><span id="progL">—</span><span id="progR">—</span></div>
       </div>
       <div class="sec-hdr"><div class="sec-title" id="dashListTitle">Gastos do mês</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div class="month-sel" id="dashMonthSel"></div><button class="btn btn-outline btn-sm" onclick="exportDashXlsx()" title="Exportar a lista abaixo para Excel">⬇ Excel</button></div></div>
+      <div class="busca-wrap"><input type="search" id="dashBusca" class="busca" placeholder="🔎 Buscar gasto, loja, categoria, final do cartão ou valor…" oninput="renderDash()" autocomplete="off"><div class="busca-res" id="dashBuscaRes"></div></div>
       <div class="exp-list" id="dashList"><div class="empty">Importe um CSV ou adicione gastos manualmente.</div></div>
       <div id="dashOutro" style="margin-top:18px;"></div>
     </div>
@@ -406,6 +411,7 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
           </select>
         </div>
       </div>
+      <div class="busca-wrap"><input type="search" id="gastosBusca" class="busca" placeholder="🔎 Buscar gasto, loja, categoria, final do cartão ou valor…" oninput="renderGastos()" autocomplete="off"><div class="busca-res" id="gastosBuscaRes"></div></div>
       <div class="exp-list" id="gastosList"><div class="empty">Nenhum gasto.</div></div>
     </div>
     <!-- CATEGORIAS -->
@@ -606,24 +612,35 @@ function renderDash(){
   document.getElementById('mAssSub').textContent=ass.length?ass.length+' no cartão este mês':'nenhuma neste mês';
   document.querySelectorAll('#dashCards .metric-card').forEach(c=>c.classList.toggle('on',c.dataset.f===DASHF));
   const tit={meus:'Meus gastos do mês',todos:'Fatura inteira do mês',outro:'Gastos de '+OUTRO()+' no mês',fixos:'Gastos fixos mensais',assin:'Assinaturas do mês'}[DASHF];
-  document.getElementById('dashListTitle').textContent=tit;
+  document.getElementById('dashListTitle').textContent=(dashQ().trim()&&DASHF!=='fixos')?'Busca na fatura inteira do mês':tit;
   const list=document.getElementById('dashList');list.innerHTML='';
   const dc=document.getElementById('dashOutro');dc.innerHTML='';dc.className='';
   if(DASHF==='fixos'){
-    if(!fixos.length){list.innerHTML='<div class="empty">Nenhum gasto fixo cadastrado. Adicione em Planejamento.</div>';return;}
-    fixos.slice().sort((a,b)=>(+b.valor||0)-(+a.valor||0)).forEach(x=>{const d=document.createElement('div');d.className='exp-row';
+    const fx=fixos.filter(x=>buscaOk(x,dashQ()));buscaInfo('dashBusca',fx,'valor');
+    if(!fx.length){list.innerHTML='<div class="empty">'+(fixos.length?'Nenhum gasto fixo encontrado.':'Nenhum gasto fixo cadastrado. Adicione em Planejamento.')+'</div>';return;}
+    fx.slice().sort((a,b)=>(+b.valor||0)-(+a.valor||0)).forEach(x=>{const d=document.createElement('div');d.className='exp-row';
       d.innerHTML='<div class="exp-ico" style="background:rgba(239,68,68,.12)">🏠</div><div class="exp-info"><div class="exp-name">'+esc(x.nome)+'</div><div class="exp-meta"><span>todo mês</span></div></div><div class="exp-right"><div class="exp-amt" style="color:var(--danger)">'+brl(+x.valor||0)+'</div></div>';
       d.style.cursor='pointer';d.onclick=()=>go('plano');list.appendChild(d);});
     return;
   }
-  const lst=dashLista(all);
+  const lst=dashLista(all).filter(e=>buscaOk(e,dashQ()));buscaInfo('dashBusca',lst,'amount');
   if(!lst.length)list.innerHTML='<div class="empty">'+({meus:'Nenhum gasto seu neste mês.',todos:'Nenhum lançamento neste mês.',outro:'Nada de '+esc(OUTRO())+' neste mês.',assin:'Nenhuma assinatura neste mês. Marque um gasto como recorrente em Gastos.'}[DASHF])+'</div>';
   lst.slice().sort((a,b)=>b.amount-a.amount).forEach(e=>list.appendChild(expRow(e,true)));
 }
 // Filtro da lista do Dashboard: clicar num card mostra os lançamentos dele (clicar de novo volta para "meus")
 var DASHF='meus';
+// Busca: nome/loja, categoria, final do cartão, de quem ou valor (aceita 389,90 / 389.9). Ignora acentos e maiúsculas.
+function semAc(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+function buscaOk(e,q){q=semAc(q).trim();if(!q)return true;
+  const alvo=semAc([e.name,e.nome,e.category,e.card,e.dono||'meu',e.date].join(' '));
+  const v=+(e.amount!=null?e.amount:e.valor)||0,vs=[v.toFixed(2),v.toFixed(2).replace('.',','),String(v)];
+  return q.split(/\s+/).every(t=>alvo.includes(t)||vs.some(x=>x.includes(t.replace(/^r\$/,''))));}
+function buscaInfo(id,lst,campo){const q=(document.getElementById(id)||{}).value||'';const el=document.getElementById(id+'Res');if(!el)return;
+  el.textContent=q.trim()?lst.length+' resultado(s) • '+brl(lst.reduce((s,x)=>s+(+x[campo]||0),0)):'';}
 function setDashF(f){DASHF=(DASHF===f&&f!=='meus')?'meus':f;renderDash();}
-function dashLista(all){return DASHF==='todos'?all:DASHF==='outro'?all.filter(e=>!mine(e)):DASHF==='assin'?all.filter(e=>mine(e)&&e.recurring):all.filter(mine);}
+function dashQ(){return (document.getElementById('dashBusca')||{}).value||'';}
+function dashLista(all){if(dashQ().trim())return all; // buscando: procura na fatura inteira do mês
+  return DASHF==='todos'?all:DASHF==='outro'?all.filter(e=>!mine(e)):DASHF==='assin'?all.filter(e=>mine(e)&&e.recurring):all.filter(mine);}
 // Exporta para Excel (.xlsx) a lista que está na tela. Se a biblioteca não carregar (sem internet), exporta CSV que o Excel abre.
 function loadXLSX(){return window.XLSX?Promise.resolve(window.XLSX):new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>window.XLSX?ok(window.XLSX):no();s.onerror=no;document.head.appendChild(s);});}
 async function exportDashXlsx(){
@@ -631,9 +648,9 @@ async function exportDashXlsx(){
   const nomeArq=quem.charAt(0).toUpperCase()+quem.slice(1)+'_'+(DASHF==='fixos'?'mensal':'fatura_'+ym);
   const dBR=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:'';};
   let head,rows;
-  if(DASHF==='fixos'){head=['Gasto fixo','Valor (R$)'];rows=(DB.plan.fixos||[]).map(x=>[x.nome,+(+x.valor||0).toFixed(2)]);}
+  if(DASHF==='fixos'){head=['Gasto fixo','Valor (R$)'];rows=(DB.plan.fixos||[]).filter(x=>buscaOk(x,dashQ())).map(x=>[x.nome,+(+x.valor||0).toFixed(2)]);}
   else{head=['Data','Estabelecimento','Valor (R$)','Cartão (final)','De quem','Categoria'];
-    rows=dashLista(DB.expenses.filter(e=>e.month===ym)).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)))
+    rows=dashLista(DB.expenses.filter(e=>e.month===ym)).filter(e=>buscaOk(e,dashQ())).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)))
       .map(e=>[dBR(e.date),e.name,+(+e.amount).toFixed(2),e.card||'',mine(e)?'Eu':e.dono,e.category||'']);}
   if(!rows.length){toast('Nada para exportar nesta lista');return;}
   const vi=head.indexOf('Valor (R$)'),tot=Math.round(rows.reduce((s,r)=>s+r[vi],0)*100)/100;
@@ -688,6 +705,7 @@ function renderGastos(){
   if(fm)exps=exps.filter(e=>e.month===fm);
   if(fc)exps=exps.filter(e=>e.category===fc);
   const fd=document.getElementById('filterDono')?.value||'';if(fd)exps=exps.filter(e=>fd==='Eu'?mine(e):!mine(e));
+  const gq=(document.getElementById('gastosBusca')||{}).value||'';if(gq.trim())exps=exps.filter(e=>buscaOk(e,gq));buscaInfo('gastosBusca',exps,'amount');
   exps=exps.slice().sort((a,b)=>(b.month+b.date).localeCompare(a.month+a.date));
   const list=document.getElementById('gastosList');list.innerHTML='';
   if(!exps.length){list.innerHTML='<div class="empty">Nenhum gasto encontrado.</div>';return;}
