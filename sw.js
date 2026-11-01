@@ -1,5 +1,5 @@
 // Funciona offline: tenta a rede primeiro (para pegar atualizações) e usa a cópia guardada se estiver sem internet.
-const CACHE = 'financas-v12';
+const CACHE = 'financas-v13';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

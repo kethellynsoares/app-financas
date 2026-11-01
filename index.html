@@ -827,6 +827,12 @@ function projecao(){
     // Se a fatura do mês já tem lançamentos seus importados, usa o valor real (que já inclui parcelas e contas no cartão)
     const fixCard=P.fixos.filter(x=>/no cart[aã]o/i.test(x.nome)).reduce((s,x)=>s+(+x.valor||0),0),fixFora=fix-fixCard;
     const real=DB.expenses.filter(e=>e.month===ym&&mine(e)).reduce((s,e)=>s+e.amount,0);
+    // Se a fatura do mês já trouxe lançamentos da outra pessoa, o "a receber" usa o valor real (parcelas + compras à vista), igual ao Dashboard
+    const deles=DB.expenses.filter(e=>e.month===ym&&!mine(e));
+    if(deles.length){Object.keys(outras).forEach(k=>delete outras[k]);
+      deles.slice().sort((a,b)=>b.amount-a.amount).forEach(e=>{const k=String(e.dono).trim(),m=String(e.name).match(/^(.*?)\s*-?\s*Parcela\s*(\d+)\s*\/\s*(\d+)/i);
+        const o=(outras[k]=outras[k]||{tot:0,itens:[],real:true});o.tot+=e.amount;
+        o.itens.push({p:{nome:m?m[1]:e.name,total:m?+m[3]:0,valor:e.amount},n:m?+m[2]:0});});}
     if(real>0){const cartao=Math.max(real,parc+fixCard);out.push({ym,ent,fix,rec:0,parc,real,cartao,fixFora,sobra:ent-fixFora-cartao,minhas,outras});}
     else out.push({ym,ent,fix,rec,parc,sobra:ent-fix-rec-parc,minhas,outras});
   }
@@ -857,9 +863,9 @@ function renderPlano(){
   const g=document.getElementById('planGrid');g.innerHTML='';
   pr.meses.forEach((m,i)=>{
     const base=Math.max(m.ent,m.real?m.fixFora+m.cartao:m.fix+m.rec+m.parc)||1,w=v=>Math.max(0,v)/base*100;
-    const outrasTxt=Object.entries(m.outras).map(([k,o])=>'<div class="pm-line" style="color:var(--warn)"><span>A receber de '+esc(k)+' ('+o.itens.length+')</span><span>'+brl(o.tot)+'</span></div>').join('');
+    const outrasTxt=Object.entries(m.outras).map(([k,o])=>'<div class="pm-line" style="color:var(--warn)"><span>A receber de '+esc(k)+' ('+o.itens.length+')'+(o.real?' • fatura':' • previsão')+'</span><span>'+brl(o.tot)+'</span></div>').join('');
     const det=m.minhas.length?m.minhas.sort((a,b)=>b.p.valor-a.p.valor).map(({p,n})=>'<div class="pm-line"><span>'+esc(p.nome)+' <span style="color:var(--text3)">'+n+'/'+p.total+(n===p.total?' • última':'')+'</span></span><span>'+brl(p.valor)+'</span></div>').join(''):'<div class="pm-line"><span>Nenhuma parcela sua neste mês</span><span></span></div>';
-    const detOut=Object.entries(m.outras).map(([k,o])=>'<div class="pm-line" style="margin-top:6px;font-weight:600;color:var(--warn)"><span>De '+esc(k)+':</span><span></span></div>'+o.itens.map(({p,n})=>'<div class="pm-line"><span>'+esc(p.nome)+' <span style="color:var(--text3)">'+n+'/'+p.total+'</span></span><span>'+brl(p.valor)+'</span></div>').join('')).join('');
+    const detOut=Object.entries(m.outras).map(([k,o])=>'<div class="pm-line" style="margin-top:6px;font-weight:600;color:var(--warn)"><span>De '+esc(k)+':</span><span></span></div>'+o.itens.map(({p,n})=>'<div class="pm-line"><span>'+esc(p.nome)+' <span style="color:var(--text3)">'+(n?n+'/'+p.total:'à vista')+'</span></span><span>'+brl(p.valor)+'</span></div>').join('')).join('');
     const d=document.createElement('div');d.className='pm-card'+(m.sobra<0?' neg':'');d.onclick=()=>d.classList.toggle('open');
     d.innerHTML='<div class="pm-hdr"><span class="pm-month">'+fmtM(m.ym)+'</span>'+(m.real?'<span class="pm-tag">fatura aberta • parcial</span>':i===0?'<span class="pm-tag">próxima fatura</span>':'')+'</div>'+
       '<div class="pm-sobra '+(m.sobra<0?'neg':'ok')+'">'+brl(m.sobra)+'</div><div class="pm-sobra-lbl">sobra no mês</div>'+
