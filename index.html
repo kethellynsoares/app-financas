@@ -1003,7 +1003,10 @@ function applySync(d){
   const ctx={cartoes,cesN};
   const byPid=new Map(DB.expenses.filter(e=>e.pid).map(e=>[e.pid,e]));
   const livres=DB.expenses.filter(e=>!e.pid),usados=new Set(),ultimas={};
-  const r={novos:0,outro:0,vinculados:0,futuros:0,parcNovas:0};
+  const r={novos:0,outro:0,vinculados:0,futuros:0,parcNovas:0,reclass:0};
+  // Lançamento já existente comprado num cartão da outra pessoa e ainda marcado como seu: passa para ela (não mexe nos demais)
+  const doCartaoOutro=t=>!!t.cartao&&cartoes.some(c=>String(t.cartao).endsWith(c));
+  const reclass=(e,t)=>{if(!e.card&&t.cartao)e.card=String(t.cartao);if(mine(e)&&doCartaoOutro(t)){e.dono=OUTRO();e.recurring=false;r.reclass++;}};
   const lista=(d.transacoes||[]).filter(t=>t&&t.id&&t.data&&!(t.tipo==='CREDIT'&&/^pagamento/i.test(t.desc||'')))
     .sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   let seq=0;const base=Date.now()*1000;
@@ -1020,11 +1023,11 @@ function applySync(d){
       const u=g.find(x=>similar(x.nome,parc.base)&&Math.abs(x.valor-valor)<=Math.max(1,valor*0.2));
       if(!u)g.push({nome:parc.base,valor,atual:parc.atual,total:parc.total,mesRef:mes,t});
       else if(parc.atual>u.atual)Object.assign(u,{nome:parc.base,valor,atual:parc.atual,mesRef:mes,t});}
-    if(byPid.has(t.id)){const e=byPid.get(t.id);if(e.month!==mes)e.month=mes;return;}
+    if(byPid.has(t.id)){const e=byPid.get(t.id);if(e.month!==mes)e.month=mes;reclass(e,t);return;}
     // Lançamento que já veio pelo CSV: mesma fatura, mesmo valor, data mais próxima
     const dt=Date.parse(t.data);let best=null,bd=Infinity;
     livres.forEach(e=>{if(usados.has(e)||e.month!==mes||Math.abs(e.amount-valor)>0.005)return;const dd=Math.abs(Date.parse(e.date)-dt);if(dd<bd){bd=dd;best=e;}});
-    if(best&&bd<=20*864e5){usados.add(best);best.pid=t.id;if(!best.card&&t.cartao)best.card=String(t.cartao);r.vinculados++;return;}
+    if(best&&bd<=20*864e5){usados.add(best);best.pid=t.id;reclass(best,t);r.vinculados++;return;}
     const nome=parc?parc.base+' - Parcela '+parc.atual+'/'+parc.total:String(t.desc||'Lançamento');
     const dono=donoSync(t,{...ctx,parc,valor,nome});
     DB.expenses.push({id:base+(seq++),pid:t.id,date:String(t.data).slice(0,10),name:nome,amount:valor,category:autoCat(nome),month:mes,recurring:dono==='Eu'&&autoRec(nome),dono,card:String(t.cartao||'')});
@@ -1061,12 +1064,12 @@ async function syncNubank(){
     if(!res.ok)throw new Error(d.erro||('A ponte respondeu com erro '+res.status));
     const antes=JSON.stringify({e:DB.expenses,p:DB.plan});
     const r=applySync(d);
-    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'');
-    if((r.novos||r.parcNovas)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
+    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'')+(r.reclass?', '+r.reclass+' lançamento(s) existente(s) passado(s) para '+OUTRO()+' pelo cartão':'');
+    if((r.novos||r.parcNovas||r.reclass)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
       const b=JSON.parse(antes);DB.expenses=b.e;DB.plan=b.p;st.textContent='Cancelado: nada foi alterado.';return;}
     DB.sync={em:new Date().toISOString(),banco:d.atualizadoEm||'',proxima:d.proximaAtualizacao||'',consentimento:d.consentimentoAte||''};
     DB.viewMonth=faturaAtual();saveDB();popMonths();renderSyncInfo();
-    toast(r.novos||r.parcNovas?msg:'Tudo em dia: nenhum lançamento novo.');
+    toast(r.novos||r.parcNovas||r.reclass?msg:'Tudo em dia: nenhum lançamento novo.');
   }catch(e){st.textContent=e.message;toast(e.message);}
   finally{btn.disabled=false;btn.textContent='⟳ Sincronizar agora';}
 }
