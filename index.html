@@ -670,7 +670,7 @@ function expRow(e,showDel){
 function toggleDono(id){const e=DB.expenses.find(x=>x.id===id);if(!e)return;e.dono=mine(e)?OUTRO():'Eu';e.manual=true;
   // se for parcela, o Planejamento passa a usar o mesmo dono (e as próximas importações também)
   const pm=e.name.match(/^(.*?)\s*-?\s*Parcela\s*(\d+)\s*\/\s*(\d+)/i);
-  if(pm&&DB.plan)DB.plan.parcelas.filter(p=>normN(p.nome)===normN(pm[1])&&Math.abs(p.valor-e.amount)<0.15&&p.total===+pm[3]).forEach(p=>p.dono=e.dono);saveDB();go(curPage);toast(mine(e)?'Marcado como seu':'Marcado como de '+OUTRO());}
+  if(pm&&DB.plan)DB.plan.parcelas.filter(p=>normN(p.nome)===normN(pm[1])&&Math.abs(p.valor-e.amount)<0.15&&p.total===+pm[3]).forEach(p=>{p.dono=e.dono;p.manual=true;});saveDB();go(curPage);toast(mine(e)?'Marcado como seu':'Marcado como de '+OUTRO());}
 function delExp(id){DB.expenses=DB.expenses.filter(e=>e.id!==id);saveDB();go(curPage);toast('Removido');}
 function popMonths(){
   const ms=months();
@@ -1104,7 +1104,17 @@ function applySync(d){
     r.novos++;if(dono!=='Eu')r.outro++;
   });
   r.parcNovas=mergeParcelasSync(Object.values(ultimas).flat(),ctx);
+  r.parcDono=syncDonoParcelas();
   return r;
+}
+// Parcela do Planejamento ainda como sua, mas cujo lançamento na fatura é da outra pessoa: passa a ser dela. Respeita trocas manuais.
+function syncDonoParcelas(){
+  let n=0;ensurePlan();
+  DB.plan.parcelas.forEach(p=>{if(p.manual||!isMine(p))return;
+    const e=DB.expenses.find(e=>{if(mine(e))return false;const m=String(e.name).match(/^(.*?)\s*-?\s*Parcela\s*\d+\s*\/\s*(\d+)/i);
+      return m&&+m[2]===p.total&&valorPerto(e.amount,p.valor)&&similar(m[1],p.nome);});
+    if(e){p.dono=e.dono;n++;}});
+  return n;
 }
 function saveSyncCfg(){
   DB.config.syncUrl=document.getElementById('cfgSyncUrl').value.trim();
@@ -1134,12 +1144,12 @@ async function syncNubank(){
     if(!res.ok)throw new Error(d.erro||('A ponte respondeu com erro '+res.status));
     const antes=JSON.stringify({e:DB.expenses,p:DB.plan});
     const r=applySync(d);
-    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'')+(r.reclass?', '+r.reclass+' lançamento(s) existente(s) passado(s) para '+OUTRO()+' (cartão ou data de corte)':'');
-    if((r.novos||r.parcNovas||r.reclass)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
+    const msg=r.novos+' lançamento(s) novo(s)'+(r.outro?' ('+r.outro+' de '+OUTRO()+')':'')+', '+r.vinculados+' já existente(s) ligado(s) ao banco'+(r.parcNovas?', '+r.parcNovas+' parcela(s) nova(s) no Planejamento':'')+(r.reclass?', '+r.reclass+' lançamento(s) existente(s) passado(s) para '+OUTRO()+' (cartão ou data de corte)':'')+(r.parcDono?', '+r.parcDono+' parcela(s) do Planejamento passada(s) para '+OUTRO():'');
+    if((r.novos||r.parcNovas||r.reclass||r.parcDono)&&!confirm('Sincronização com o Nubank\n\n'+msg+'.\n\nAplicar?')){
       const b=JSON.parse(antes);DB.expenses=b.e;DB.plan=b.p;st.textContent='Cancelado: nada foi alterado.';return;}
     DB.sync={em:new Date().toISOString(),banco:d.atualizadoEm||'',proxima:d.proximaAtualizacao||'',consentimento:d.consentimentoAte||''};
     DB.viewMonth=faturaAtual();saveDB();popMonths();renderSyncInfo();
-    toast(r.novos||r.parcNovas||r.reclass?msg:'Tudo em dia: nenhum lançamento novo.');
+    toast(r.novos||r.parcNovas||r.reclass||r.parcDono?msg:'Tudo em dia: nenhum lançamento novo.');
   }catch(e){st.textContent=e.message;toast(e.message);}
   finally{btn.disabled=false;btn.textContent='⟳ Sincronizar agora';}
 }
