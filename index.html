@@ -247,6 +247,13 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
 .lock-link{background:none;border:none;color:var(--text3);font-size:12px;margin-top:18px;cursor:pointer;text-decoration:underline;font-family:var(--font);}
 .pw-form{display:none;margin-top:12px;}
 .pw-form.on{display:block;}
+.nuv-chip{display:none;align-items:center;gap:5px;font-size:11px;color:var(--text3);background:none;border:none;font-family:inherit;cursor:pointer;padding:0;text-align:left;max-width:100%;}
+.nuv-chip.on{display:inline-flex;}
+.nuv-chip.err{color:var(--danger);font-weight:600;}
+.nuv-chip.pend{color:var(--warn);}
+.sidebar-foot .nuv-chip{margin-top:6px;}
+.topbar .nuv-chip{font-size:10px;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nuv-form{margin-top:12px;}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 </style>
@@ -284,13 +291,14 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
     <div class="sidebar-foot">
       <div class="theme-row"><span>Modo escuro</span><label class="tog"><input type="checkbox" id="themeToggle" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label></div>
       <div class="storage-info" id="storageInfo">0 registros</div>
+      <button class="nuv-chip" type="button" onclick="go('config')" title="Sincronização entre aparelhos"></button>
       <button class="btn btn-outline btn-sm btn-full lock-btn" style="margin-top:10px;display:none" onclick="lockNow()">🔒 Bloquear agora</button>
     </div>
   </aside>
   <div class="content" id="mainContent">
     <div class="topbar mob-only">
       <div class="topbar-title" id="topbarTitle">Dashboard</div>
-      <div style="display:flex;gap:12px;align-items:center;"><label class="tog"><input type="checkbox" id="themeToggle2" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label><button class="lock-btn" onclick="lockNow()" title="Bloquear" style="display:none;background:none;border:none;font-size:18px;cursor:pointer;">🔒</button><button onclick="go('config')" title="Config e backup" style="background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;">⚙</button></div>
+      <div style="display:flex;gap:12px;align-items:center;"><button class="nuv-chip" type="button" onclick="go('config')" title="Sincronização entre aparelhos"></button><label class="tog"><input type="checkbox" id="themeToggle2" onchange="applyTheme(this.checked)"><span class="tog-track"></span></label><button class="lock-btn" onclick="lockNow()" title="Bloquear" style="display:none;background:none;border:none;font-size:18px;cursor:pointer;">🔒</button><button onclick="go('config')" title="Config e backup" style="background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;">⚙</button></div>
     </div>
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page active">
@@ -477,6 +485,19 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
         </div>
         <div class="hint">A ponte busca os lançamentos do cartão no banco (Open Finance) e guarda as chaves de acesso fora do app. Compras feitas nos cartões acima, ou até a data acima, entram como de <span class="outroNome">outra pessoa</span>. A senha da ponte fica só neste aparelho e não vai para o backup.</div>
       </div>
+      <div class="set-sec">Sincronização entre aparelhos</div>
+      <div class="card" id="nuvCard">
+        <div class="set-row" style="border:none;padding:0;gap:12px;flex-wrap:wrap;"><div style="min-width:0;flex:1"><div class="set-label" id="nuvStatus">Desligada</div><div class="set-sub" id="nuvSub">PC e celular mostram os mesmos dados, sem backup manual.</div></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><button class="btn btn-primary btn-sm" id="nuvNowBtn" style="display:none" onclick="nuvemAgora()">⟳ Sincronizar agora</button><button class="btn btn-outline btn-sm" id="nuvOffBtn" style="display:none" onclick="nuvemDesligar()">Desligar</button></div></div>
+        <form class="nuv-form" id="nuvForm" onsubmit="event.preventDefault();nuvemAtivar();">
+          <div class="fgrid fc2">
+            <div><label class="lbl">Senha da nuvem (mín. 8 caracteres)</label><input type="password" id="nuvPw" autocomplete="new-password"></div>
+            <div><label class="lbl">Repita a senha da nuvem</label><input type="password" id="nuvPw2" autocomplete="new-password"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit" id="nuvAtivarBtn">Ativar sincronização</button>
+          <div class="hint">Usa a mesma ponte do Nubank (preencha endereço e senha da ponte acima). Os dados são <strong>criptografados neste aparelho</strong> com a senha da nuvem antes de sair: nem a ponte nem a Cloudflare conseguem ler. Use a <strong>mesma senha da nuvem</strong> em todos os aparelhos e guarde-a bem — sem ela, só o backup do OneDrive recupera os dados.<br>Ative primeiro no aparelho que está com os dados certos (o PC). Nos outros, os dados do aparelho são <strong>substituídos</strong> pelos da nuvem.</div>
+        </form>
+      </div>
       <div class="set-sec">Senha deste aparelho</div>
       <div class="card">
         <div class="set-row"><div><div class="set-label" id="pwStatus">Sem senha</div><div class="set-sub" id="pwSub">Qualquer pessoa com este aparelho pode abrir o app.</div></div>
@@ -492,7 +513,7 @@ label.lbl{font-size:12px;font-weight:500;color:var(--text2);display:block;margin
       </div>
       <div class="set-sec">Backup e outros aparelhos</div>
       <div class="card">
-        <div class="hint" style="margin:0 0 10px;">Os dados ficam guardados só neste navegador. Para usar no celular ou em outro computador: <strong>Salvar backup</strong> aqui, guarde o arquivo no OneDrive e, no outro aparelho, <strong>Importar backup</strong>. A importação junta os dados — nada é apagado.</div>
+        <div class="hint" style="margin:0 0 10px;" id="backupHint">Os dados ficam guardados só neste navegador. Para usar no celular ou em outro computador: <strong>Salvar backup</strong> aqui, guarde o arquivo no OneDrive e, no outro aparelho, <strong>Importar backup</strong>. A importação junta os dados — nada é apagado.</div>
         <div class="set-row"><div><div class="set-label">Salvar backup</div><div class="set-sub" id="backupInfo">—</div></div><button class="btn btn-primary btn-sm" onclick="exportData()">Salvar</button></div>
         <div class="set-row"><div><div class="set-label">Importar backup</div><div class="set-sub">Arquivo financas-backup-….json mais recente</div></div><button class="btn btn-outline btn-sm" onclick="document.getElementById('jsonFile').click()">Importar</button><input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="importBackup(this)"></div>
         <div class="set-row"><div><div class="set-label red">Apagar tudo</div><div class="set-sub">Só deste aparelho. Não pode ser desfeito</div></div><button class="btn btn-danger btn-sm" onclick="clearAll()">Apagar</button></div>
@@ -533,13 +554,17 @@ let catVM=null,curPage='dashboard';
 function loadDB(){try{const s=localStorage.getItem('nuf_v3');if(s)DB={...DB,...JSON.parse(s)};}catch(e){}if(!DB.viewMonth)DB.viewMonth=curM();}
 function dataHash(){const t=JSON.stringify([DB.expenses,DB.plan,DB.config]);let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return h;}
 function saveDB(){
+  const ch=stampChanges(); // anota o que mudou (para a sincronização entre aparelhos)
   const h=dataHash();if(h!==DB.hash){DB.hash=h;DB.savedAt=new Date().toISOString();}
-  try{if(CRYPTO_KEY)queueEncSave();else localStorage.setItem('nuf_v3',JSON.stringify(DB));}catch(e){toast('Não consegui salvar neste navegador. Exporte um backup!');}
+  const env=ch&&nuvemOn();if(env){DB.nuvem.pend=true;NUV.dirty++;}
+  persistLocal();
   const el=document.getElementById('storageInfo');if(el)el.textContent=DB.expenses.length+' registros';
   renderBackupBanner();
+  if(env){nuvemAgendar();nuvRender();}
 }
+function persistLocal(){try{if(CRYPTO_KEY)queueEncSave();else localStorage.setItem('nuf_v3',JSON.stringify(DB));}catch(e){toast('Não consegui salvar neste navegador. Exporte um backup!');}}
 function fmtDT(iso){if(!iso)return 'nunca';const d=new Date(iso);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-function pendingBackup(){return DB.expenses.length>0&&DB.hash!==DB.exportedHash;}
+function pendingBackup(){return !nuvemOn()&&DB.expenses.length>0&&DB.hash!==DB.exportedHash;}
 function renderBackupBanner(){
   const el=document.getElementById('backupBanner');if(!el)return;
   if(pendingBackup()){el.style.display='flex';el.querySelector('span').textContent='Há alterações que ainda não estão no backup (último: '+fmtDT(DB.lastExport)+').';}
@@ -960,6 +985,7 @@ function renderCfg(){
   document.getElementById('cfgCartoesOutro').value=DB.config.cartoesOutro||'';
   document.getElementById('cfgCorteOutro').value=DB.config.corteOutro||'';
   renderPwCfg();
+  renderNuvemCfg();
   renderBackupInfo();
   const t3=document.getElementById('themeToggle3');if(t3)t3.checked=document.documentElement.getAttribute('data-theme')==='dark';
 }
@@ -975,7 +1001,7 @@ function saveConfig(){
 async function exportData(){
   const now=new Date(),pad=n=>String(n).padStart(2,'0');
   const name='financas-backup-'+now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes())+'.json';
-  const out={...DB,exportedAt:now.toISOString(),app:'financas',versao:3};delete out.hash;delete out.exportedHash;
+  const out={...DB,exportedAt:now.toISOString(),app:'financas',versao:3};delete out.hash;delete out.exportedHash;delete out.nuvem;delete out.stamps;delete out.del; // a chave da nuvem nunca vai para o backup
   out.config={...out.config};delete out.config.syncToken; // a senha da ponte não vai para o backup
   const json=JSON.stringify(out);
   const done=()=>{DB.exportedHash=DB.hash;DB.lastExport=now.toISOString();saveDB();renderBackupInfo();toast('Backup salvo: '+name);};
@@ -988,7 +1014,7 @@ async function exportData(){
   }catch(e){if(e&&e.name==='AbortError'){toast('Backup cancelado');return;}}
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();done();
 }
-function clearAll(){if(!confirm('Apagar TODOS os dados?'))return;DB.expenses=[];saveDB();toast('Apagado.');go('dashboard');}
+function clearAll(){if(!confirm(nuvemOn()?'A sincronização está ligada: apagar aqui apaga os lançamentos também na nuvem e nos OUTROS aparelhos.\n\nApagar TODOS os lançamentos?':'Apagar TODOS os dados?'))return;DB.expenses=[];saveDB();toast('Apagado.');go('dashboard');}
 function handleCSV(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const t=e.target.result;if(isPlanoCSV(t))importPlanoCSV(t);else importCSV(t,f.name);};r.readAsText(f,'UTF-8');input.value='';}
 // CSV de planejamento: colunas Tipo;Descrição;Valor  (Tipo = Entrada ou Fixo). Atualiza itens de mesmo nome e acrescenta os novos.
 function isPlanoCSV(t){return /^\ufeff?\s*"?tipo"?\s*[;,\t]/i.test(String(t));}
@@ -1161,6 +1187,7 @@ async function syncNubank(){
   if(!url||!tok){toast('Preencha o endereço e a senha da ponte em Config');go('config');return;}
   const btn=document.getElementById('syncBtn'),st=document.getElementById('syncStatus');
   btn.disabled=true;btn.textContent='Sincronizando…';st.textContent='Buscando os lançamentos no banco…';
+  NUV.hold++; // não junta dados da nuvem no meio da sincronização com o banco
   try{
     let res;try{res=await fetch(url+'/sync',{headers:{Authorization:'Bearer '+tok},cache:'no-store'});}
     catch(e){throw new Error('Não consegui falar com a ponte. Confira a internet e o endereço em Config.');}
@@ -1175,9 +1202,10 @@ async function syncNubank(){
     DB.viewMonth=faturaAtual();saveDB();popMonths();renderSyncInfo();
     toast(r.novos||r.parcNovas||r.reclass||r.parcDono?msg:'Tudo em dia: nenhum lançamento novo.');
   }catch(e){st.textContent=e.message;toast(e.message);}
-  finally{btn.disabled=false;btn.textContent='⟳ Sincronizar agora';}
+  finally{NUV.hold--;btn.disabled=false;btn.textContent='⟳ Sincronizar agora';}
 }
 function loadDemo(){
+  if(nuvemOn()){toast('Desligue a sincronização (Config) antes de carregar a demonstração');return;}
   if(DB.expenses.length&&!confirm('A demonstração APAGA os seus '+DB.expenses.length+' lançamentos. Continuar?'))return;
   const demo=[
     {date:'2026-03-01',name:'Netflix',amount:55.90,month:'2026-03',recurring:true},
@@ -1217,6 +1245,10 @@ function loadDemo(){
 // Junta o backup com os dados deste aparelho: nenhum lançamento é apagado.
 // Planejamento e configurações vêm do lado salvo mais recentemente.
 function mergeBackup(data){
+  // o que já foi apagado neste aparelho (ou em outro, com a sincronização) não volta pelo backup
+  const apag=DB.del||{},vivo=pref=>x=>!(x&&x.id!=null&&apag[pref+x.id]);
+  data={...data,expenses:(data.expenses||[]).filter(vivo('e:'))};
+  if(data.plan){data.plan={...data.plan};['entradas','fixos','parcelas'].forEach(k=>{if(Array.isArray(data.plan[k]))data.plan[k]=data.plan[k].filter(vivo(k+':'));});}
   const key=e=>e.date+'|'+e.name+'|'+(+e.amount).toFixed(2);
   const P=DB.plan||{},vazio=!DB.expenses.length&&!(P.entradas||[]).length&&!(P.fixos||[]).length&&!(P.parcelas||[]).length;
   const bNewer=vazio||(data.savedAt||data.exportedAt||'')>(DB.savedAt||'');
@@ -1291,7 +1323,9 @@ async function savePw(){
 async function removePw(){
   if(!confirm('Remover a senha deste aparelho? Os dados voltam a ficar sem proteção.'))return;
   await saveChain;CRYPTO_KEY=null;SALT=null;localStorage.removeItem(ENC);localStorage.removeItem('nuf_lockinfo');saveDB();renderPwCfg();toast('Senha removida');}
-async function lockNow(){if(!CRYPTO_KEY)return;await saveChain;location.reload();}
+async function lockNow(){if(!CRYPTO_KEY)return;
+  if(nuvemOn()&&DB.nuvem.pend)await Promise.race([nuvemSync({pull:false}),new Promise(r=>setTimeout(r,4000))]);
+  await saveChain;location.reload();}
 function forgotPw(){
   if(!confirm('Sem a senha não dá para abrir os dados deste aparelho.\n\nPosso APAGAR os dados deste aparelho para você importar o backup do OneDrive de novo. Continuar?'))return;
   localStorage.removeItem(ENC);localStorage.removeItem('nuf_v3');localStorage.removeItem('nuf_lockinfo');location.reload();}
@@ -1310,11 +1344,217 @@ async function unlock(){
 function armIdle(){clearTimeout(idleT);if(CRYPTO_KEY)idleT=setTimeout(lockNow,10*60*1000);}
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,armIdle,{passive:true}));
 document.addEventListener('visibilitychange',()=>{if(!CRYPTO_KEY)return;if(document.hidden)hiddenAt=Date.now();else if(hiddenAt&&Date.now()-hiddenAt>60000)lockNow();});
+/* ===================== SINCRONIZAÇÃO ENTRE APARELHOS (nuvem, pela ponte) =====================
+   Cada item (lançamento, entrada, fixo, parcela, planejamento, config) é um registro com chave.
+   Ao salvar, o app compara com a última foto (SNAP) e anota a hora de quem mudou (DB.stamps);
+   quem sumiu vira "apagado em" (DB.del). Ao juntar com a nuvem, vence a alteração mais recente de cada registro,
+   inclusive a exclusão — por isso o que foi apagado num aparelho não volta.
+   Os dados saem do aparelho criptografados (AES-GCM) com a senha da nuvem: a ponte só guarda texto embaralhado. */
+const CFG_LOCAL=['syncUrl','syncToken']; // ficam só neste aparelho
+const DEL_DIAS=400;                       // por quanto tempo a nuvem lembra o que foi apagado
+let SNAP=null;
+const NUV={key:null,busy:false,again:false,hold:0,t:null,dirty:0,last:0,err:'',offline:false};
+function nowISO(){return new Date().toISOString();}
+function nuvemOn(){return !!(DB.nuvem&&DB.nuvem.k);}
+function planMeta(){const P=DB.plan||{},o={};Object.keys(P).forEach(k=>{if(!['entradas','fixos','parcelas'].includes(k))o[k]=P[k];});return o;}
+function cfgShared(){const o={...(DB.config||{})};CFG_LOCAL.forEach(k=>delete o[k]);return o;}
+function recsOf(){
+  const m=new Map();
+  (DB.expenses||[]).forEach(e=>m.set('e:'+e.id,e));
+  const P=DB.plan||{};['entradas','fixos','parcelas'].forEach(k=>(P[k]||[]).forEach(x=>m.set(k+':'+x.id,x)));
+  if(DB.plan)m.set('plan',planMeta());
+  m.set('config',cfgShared());
+  if(DB.sync)m.set('nusync',DB.sync);
+  return m;
+}
+// Cada registro precisa de um id único para poder ser sincronizado
+function fixIds(){
+  let n=0;const uniq=arr=>{const seen=new Set();(arr||[]).forEach(x=>{while(x.id==null||seen.has(x.id))x.id=Date.now()*1000+(n++);seen.add(x.id);});};
+  uniq(DB.expenses);if(DB.plan)['entradas','fixos','parcelas'].forEach(k=>uniq(DB.plan[k]));
+}
+function initSnap(){fixIds();DB.stamps=DB.stamps||{};DB.del=DB.del||{};SNAP=new Map();recsOf().forEach((o,k)=>SNAP.set(k,JSON.stringify(o)));}
+function stampChanges(){
+  if(!SNAP){initSnap();return false;}
+  fixIds();DB.stamps=DB.stamps||{};DB.del=DB.del||{};
+  const t=nowISO(),nova=new Map();let ch=false;
+  recsOf().forEach((o,k)=>{const j=JSON.stringify(o);nova.set(k,j);if(SNAP.get(k)!==j){DB.stamps[k]=t;delete DB.del[k];ch=true;}});
+  SNAP.forEach((j,k)=>{if(!nova.has(k)){DB.del[k]=t;delete DB.stamps[k];ch=true;}});
+  SNAP=nova;return ch;
+}
+function docOf(){const r={};recsOf().forEach((o,k)=>r[k]=o);return {v:1,recs:JSON.parse(JSON.stringify(r)),st:{...(DB.stamps||{})},del:{...(DB.del||{})}};}
+// Junta dois estados: para cada registro vence a alteração (ou exclusão) mais recente. Empate: fica a deste aparelho.
+function mergeDocs(L,R){
+  const M={v:1,recs:{},st:{},del:{}},lim=new Date(Date.now()-DEL_DIAS*864e5).toISOString();
+  const lado=(D,k)=>k in D.recs?{t:D.st[k]||'',o:D.recs[k]}:(D.del[k]?{t:D.del[k],del:true}:null);
+  const keys=new Set([...Object.keys(L.recs),...Object.keys(R.recs),...Object.keys(L.del),...Object.keys(R.del)]);
+  keys.forEach(k=>{const a=lado(L,k),b=lado(R,k),w=!a?b:!b?a:(b.t>a.t?b:a);
+    if(w.del){if(w.t>=lim)M.del[k]=w.t;}else{M.recs[k]=w.o;if(w.t)M.st[k]=w.t;}});
+  return M;
+}
+function sameDoc(a,b){
+  const ka=Object.keys(a.recs);if(ka.length!==Object.keys(b.recs).length)return false;
+  for(const k of ka){if(!(k in b.recs)||(a.st[k]||'')!==(b.st[k]||'')||JSON.stringify(a.recs[k])!==JSON.stringify(b.recs[k]))return false;}
+  const da=Object.keys(a.del);if(da.length!==Object.keys(b.del).length)return false;
+  return da.every(k=>b.del[k]===a.del[k]);
+}
+// Troca os dados do app pelos do estado M (sem marcar nada como alterado)
+function applyDoc(M){
+  const loc={};CFG_LOCAL.forEach(k=>{if(DB.config&&DB.config[k]!==undefined)loc[k]=DB.config[k];});
+  const ex=[],P={entradas:[],fixos:[],parcelas:[]};
+  Object.keys(M.recs).forEach(k=>{const i=k.indexOf(':');if(i<0)return;const t=k.slice(0,i);
+    if(t==='e')ex.push(M.recs[k]);else if(P[t])P[t].push(M.recs[k]);});
+  DB.expenses=ex;
+  DB.plan={...JSON.parse(JSON.stringify(PLAN_SEED)),...(M.recs.plan||{}),...P};
+  DB.config={limite:3000,alertPct:80,...(M.recs.config||{}),...loc};
+  if(M.recs.nusync)DB.sync=M.recs.nusync;else delete DB.sync;
+  DB.stamps={...M.st};DB.del={...M.del};
+  SNAP=null;initSnap();
+  ensurePlan();
+}
+/* --- criptografia da nuvem (chave derivada da senha da nuvem; o sal vai junto com os dados) --- */
+async function deriveRaw(pw,salt){const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:PBKDF2_IT,hash:'SHA-256'},base,256));}
+function aesKey(raw){return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt']);}
+async function nuvKey(){if(NUV.key)return NUV.key;if(!nuvemOn())throw new Error('Sincronização desligada.');NUV.key=await aesKey(unb64(DB.nuvem.k));return NUV.key;}
+async function gz(u8,comprimir){const st=comprimir?new CompressionStream('gzip'):new DecompressionStream('gzip');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(st)).arrayBuffer());}
+async function cifrar(doc,key,salt){
+  let pt=new TextEncoder().encode(JSON.stringify(doc)),z=0;
+  if(typeof CompressionStream==='function'){try{pt=await gz(pt,true);z=1;}catch(e){}}
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,pt));
+  return JSON.stringify({v:1,s:salt,iv:b64(iv),z,ct:b64big(ct)});
+}
+async function decifrar(blob,key){
+  const env=JSON.parse(blob);let pt;
+  try{pt=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(env.iv)},key,unb64(env.ct)));}catch(e){throw new Error('SENHA');}
+  if(env.z){if(typeof DecompressionStream!=='function')throw new Error('Este navegador é antigo demais para a sincronização. Atualize o navegador.');pt=await gz(pt,false);}
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+/* --- conversa com a ponte --- */
+function ponte(){const url=String(DB.config.syncUrl||'').trim().replace(/\/+$/,''),tok=String(DB.config.syncToken||'').trim();
+  if(!url||!tok)throw new Error('Preencha o endereço e a senha da ponte em Config.');return {url,tok};}
+async function apiDados(method,body,q){
+  const {url,tok}=ponte();let res;
+  try{res=await fetch(url+'/dados'+(q||''),{method,headers:{Authorization:'Bearer '+tok,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store'});}
+  catch(e){const er=new Error('Sem internet ou ponte fora do ar.');er.offline=true;throw er;}
+  let d={};try{d=await res.json();}catch(e){}
+  if(res.status===409&&d.blob)return {conflito:true,...d};
+  if(!res.ok)throw new Error(d.erro||('A ponte respondeu com erro '+res.status));
+  return d;
+}
+/* --- ciclo de sincronização --- */
+function podeAplicar(){const a=document.activeElement;return !(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest('.content')&&a.type!=='checkbox');}
+function refreshPage(){const mc=document.getElementById('mainContent'),y=mc.scrollTop;go(curPage);mc.scrollTop=y;}
+async function juntar(d){
+  const R=await decifrar(d.blob,await nuvKey()),L=docOf(),M=mergeDocs(L,R);
+  if(!sameDoc(M,L)){applyDoc(M);refreshPage();}
+  DB.nuvem.rev=d.rev;
+  if(!sameDoc(M,R)){DB.nuvem.pend=true;NUV.dirty++;}
+  persistLocal();
+}
+function nuvemAgendar(ms){clearTimeout(NUV.t);NUV.t=setTimeout(()=>nuvemSync(),ms==null?4000:ms);}
+// Baixa a versão da nuvem (se mudou), junta, e envia o que este aparelho tem de novo
+async function nuvemSync(o){
+  o=o||{};if(!nuvemOn())return;
+  if(NUV.busy){NUV.again=true;return;}
+  if(NUV.hold){nuvemAgendar(3000);return;}
+  NUV.busy=true;nuvRender();let ok=false;
+  try{
+    const n=DB.nuvem,key=await nuvKey();
+    if(o.pull!==false){
+      const d=await apiDados('GET',null,'?rev='+(n.rev||0));
+      if(!d.igual){
+        if(!d.blob){if((n.rev||0)>0)throw new Error('A nuvem está vazia (a ponte foi refeita?). Desligue e ative de novo.');}
+        else if(!podeAplicar()&&!o.force){nuvemAgendar(5000);return;} // você está digitando: tenta daqui a pouco
+        else await juntar(d);
+      }
+    }
+    for(let i=0;i<4&&n.pend;i++){
+      const seq=NUV.dirty,blob=await cifrar(docOf(),key,n.s);
+      const r=await apiDados('PUT',{base:n.rev||0,blob});
+      if(r.conflito){await juntar(r);continue;}
+      n.rev=r.rev;if(NUV.dirty===seq)n.pend=false;
+    }
+    n.ok=nowISO();persistLocal();NUV.err='';NUV.offline=false;ok=true;
+  }catch(e){
+    if(e.offline){NUV.offline=true;NUV.err='';if(DB.nuvem&&DB.nuvem.pend)nuvemAgendar(30000);}
+    else NUV.err=e.message==='SENHA'?'a senha da nuvem não confere com a dos outros aparelhos. Desligue e ative de novo.':e.message;
+  }finally{
+    NUV.busy=false;NUV.last=Date.now();nuvRender();
+    if(NUV.again||(ok&&DB.nuvem&&DB.nuvem.pend)){NUV.again=false;nuvemAgendar(800);}
+  }
+  return ok;
+}
+async function nuvemAtivar(){
+  const pw=document.getElementById('nuvPw').value,pw2=document.getElementById('nuvPw2').value;
+  if(pw.length<8){toast('A senha da nuvem precisa ter pelo menos 8 caracteres');return;}
+  if(pw!==pw2){toast('As senhas não são iguais');return;}
+  if(!crypto.subtle){toast('Este navegador não permite criptografia aqui. Use o link do GitHub (https).');return;}
+  try{ponte();}catch(e){toast(e.message);return;}
+  const btn=document.getElementById('nuvAtivarBtn');btn.disabled=true;btn.textContent='Conectando…';
+  try{
+    const d=await apiDados('GET');
+    if(!d.blob){
+      if(!confirm('A nuvem está vazia.\n\nEnviar os dados DESTE aparelho ('+DB.expenses.length+' lançamentos, planejamento e configurações)?\n\nDepois ative nos outros aparelhos com a mesma senha da nuvem.'))return;
+      const salt=b64(crypto.getRandomValues(new Uint8Array(16))),raw=await deriveRaw(pw,unb64(salt));
+      saveDB();DB.nuvem={k:b64(raw),s:salt,rev:d.rev||0,pend:true};NUV.key=null;NUV.dirty++;NUV.err='';persistLocal();
+      if(!(await nuvemSync({pull:false})))throw new Error(NUV.err||'Não consegui enviar. Confira a internet e tente de novo.');
+      toast('Sincronização ativada: dados enviados para a nuvem');
+    }else{
+      const env=JSON.parse(d.blob),raw=await deriveRaw(pw,unb64(env.s)),key=await aesKey(raw);
+      let R;try{R=await decifrar(d.blob,key);}catch(e){if(e.message==='SENHA'){toast('Senha da nuvem incorreta');return;}throw e;}
+      const nR=Object.keys(R.recs).filter(k=>k.startsWith('e:')).length;
+      if(DB.expenses.length&&!confirm('A nuvem tem '+nR+' lançamentos (atualizada em '+fmtDT(d.em)+').\n\nOs dados DESTE aparelho ('+DB.expenses.length+' lançamentos, planejamento e configurações) serão SUBSTITUÍDOS pelos da nuvem. Continuar?'))return;
+      applyDoc(R);DB.nuvem={k:b64(raw),s:env.s,rev:d.rev,pend:false,ok:nowISO()};NUV.key=key;NUV.err='';
+      DB.viewMonth=faturaAtual();saveDB();popMonths();
+      toast('Sincronização ativada: dados iguais aos da nuvem');
+    }
+    document.getElementById('nuvPw').value='';document.getElementById('nuvPw2').value='';
+  }catch(e){
+    if(!e.offline&&DB.nuvem&&!DB.nuvem.ok&&DB.nuvem.rev===0){delete DB.nuvem;NUV.key=null;persistLocal();}
+    toast(e.offline?'Sem internet ou ponte fora do ar':e.message);
+  }finally{btn.disabled=false;btn.textContent='Ativar sincronização';refreshPage();nuvRender();}
+}
+function nuvemDesligar(){
+  if(!confirm('Desligar a sincronização NESTE aparelho?\n\nOs dados continuam aqui. A nuvem e os outros aparelhos não são afetados.'))return;
+  delete DB.nuvem;NUV.key=null;NUV.err='';clearTimeout(NUV.t);persistLocal();nuvRender();renderCfg();renderBackupBanner();toast('Sincronização desligada neste aparelho');
+}
+async function nuvemAgora(){const ok=await nuvemSync({force:true});toast(ok?'Tudo sincronizado':(NUV.offline?'Sem internet: envio fica pendente':'Erro: '+NUV.err));}
+function horaCurta(iso){if(!iso)return '';const d=new Date(iso),hj=new Date().toDateString()===d.toDateString(),h=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  return hj?h:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+h;}
+function nuvRender(){
+  const on=nuvemOn(),n=DB.nuvem||{};let txt='',cls='';
+  if(on){
+    if(NUV.err){txt='⚠ Sincronização com erro';cls='err';}
+    else if(NUV.busy)txt='☁ Sincronizando…';
+    else if(n.pend){txt=NUV.offline?'☁ Sem internet • pendente':'☁ Enviando…';cls='pend';}
+    else txt='☁ Sincronizado'+(n.ok?' '+horaCurta(n.ok):'');
+  }
+  document.querySelectorAll('.nuv-chip').forEach(b=>{b.className='nuv-chip'+(on?' on':'')+(cls?' '+cls:'');b.textContent=txt;b.title=NUV.err?'Sincronização: '+NUV.err:txt;});
+  if(curPage==='config')renderNuvemCfg();
+}
+function renderNuvemCfg(){
+  const on=nuvemOn(),n=DB.nuvem||{},$=id=>document.getElementById(id);if(!$('nuvStatus'))return;
+  $('nuvStatus').textContent=on?'☁ Ligada neste aparelho':'Desligada';
+  $('nuvSub').textContent=on?(NUV.err?'⚠ '+NUV.err:n.pend?(NUV.offline?'Sem internet: as alterações serão enviadas quando a conexão voltar.':'Enviando alterações…'):'Última sincronização: '+fmtDT(n.ok)):'PC e celular mostram os mesmos dados, sem backup manual.';
+  $('nuvSub').style.color=on&&NUV.err?'var(--danger)':'';
+  $('nuvForm').style.display=on?'none':'';$('nuvNowBtn').style.display=on?'':'none';$('nuvOffBtn').style.display=on?'':'none';
+  const bh=$('backupHint');if(bh)bh.innerHTML=on?'Com a sincronização ligada, os aparelhos se atualizam sozinhos. O backup no OneDrive vira só um <strong>plano B</strong>: salve um de vez em quando.':'Os dados ficam guardados só neste navegador. Para usar no celular ou em outro computador: ative a <strong>Sincronização entre aparelhos</strong> acima, ou <strong>Salvar backup</strong> aqui, guarde o arquivo no OneDrive e, no outro aparelho, <strong>Importar backup</strong>. A importação junta os dados — nada é apagado.';
+}
+document.addEventListener('visibilitychange',()=>{
+  if(!nuvemOn())return;
+  if(document.hidden){if(DB.nuvem.pend){clearTimeout(NUV.t);nuvemSync({pull:false});}}
+  else if(Date.now()-NUV.last>15000)nuvemSync();
+});
+window.addEventListener('online',()=>{if(nuvemOn())nuvemSync();});
+setInterval(()=>{if(!document.hidden&&nuvemOn()&&Date.now()-NUV.last>170000)nuvemSync();},60000);
 function startApp(){
   if(!DB.viewMonth)DB.viewMonth=curM();
   ensurePlan();
   document.getElementById('newDate').value=new Date().toISOString().slice(0,10);
   saveDB();applyOutroLabels();popMonths();go('dashboard');renderPwCfg();armIdle();
+  nuvRender();if(nuvemOn())setTimeout(()=>nuvemSync(),300);
 }
 if(localStorage.getItem('nuf_theme')==='dark')applyTheme(true);
 if(hasPw()){

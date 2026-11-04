@@ -12,7 +12,7 @@ App de uma página só (HTML + JS, sem servidor) para acompanhar a fatura do Nub
 | `icon-192.png`, `icon-512.png` | Ícones |
 | `.gitignore` | Impede que dados financeiros entrem no repositório |
 | `README.md` | Este guia |
-| `ponte/worker.js` | A ponte com o Nubank (roda na Cloudflare, não no GitHub Pages) |
+| `ponte/worker.js` | A ponte com o Nubank e a sincronização entre aparelhos (roda na Cloudflare, não no GitHub Pages) |
 | `ponte/LEIA-ME.md` | Como instalar a ponte |
 
 **Nunca faça commit** de backups (`financas-backup-*.json`), CSVs, PDFs ou planilhas de fatura. O `.gitignore` já bloqueia esses arquivos. O código não tem nenhum dado pessoal: os seus dados entram pelo backup.
@@ -38,7 +38,7 @@ App de uma página só (HTML + JS, sem servidor) para acompanhar a fatura do Nub
 ## Primeiro uso em cada aparelho
 
 1. Abra o link do app.
-2. Vá em ⚙ Config → **Importar backup** e escolha o backup mais recente que está no OneDrive.
+2. Vá em ⚙ Config → **Sincronização entre aparelhos** e ative com a senha da nuvem (veja abaixo). Sem a sincronização: **Importar backup** com o backup mais recente que está no OneDrive.
 3. **No celular:** no menu do navegador, toque em "Adicionar à tela inicial" (Android/Chrome) ou em Compartilhar → "Adicionar à Tela de Início" (iPhone/Safari). O app passa a abrir como um aplicativo.
 
 ## Sincronização automática com o Nubank (Open Finance)
@@ -65,9 +65,20 @@ App (GitHub Pages) ──senha da ponte──▶ Ponte (Cloudflare Worker) ─�
 - **De quem é cada gasto:** toque no selo "meu"/nome da outra pessoa para trocar.
 - **Planejamento:** mostra a sobra de cada mês e quanto a outra pessoa te deve.
 
-## Manter os aparelhos iguais (backup no OneDrive)
+## Manter os aparelhos iguais — sincronização automática
 
-Cada navegador guarda a sua própria cópia dos dados. A regra é simples:
+Cada navegador guarda a sua própria cópia dos dados. Com a **Sincronização entre aparelhos** ligada (Config), a ponte guarda uma cópia na nuvem e os aparelhos se atualizam sozinhos:
+
+- Ao mexer em qualquer coisa, o app envia a alteração uns 4 segundos depois. Ao abrir o app, ou voltar para ele, busca o que mudou no outro aparelho.
+- Cada lançamento, entrada, gasto fixo e parcela guarda a hora da última alteração. Se os dois aparelhos mexerem, **vale a alteração mais recente de cada item** — nada se perde.
+- **Apagou num aparelho, apaga nos outros** e não volta (nem importando um backup antigo).
+- Os dados saem do aparelho **criptografados com a senha da nuvem** (AES-GCM). A ponte e a Cloudflare não conseguem ler. A senha da nuvem e a senha da ponte nunca vão para o backup.
+- Sem internet, o app funciona normal e envia quando a conexão voltar ("☁ Sem internet • pendente").
+- Instalação: `ponte/LEIA-ME.md` → "Ligar a sincronização entre aparelhos". Ative primeiro no aparelho com os dados certos; nos outros, os dados são substituídos pelos da nuvem.
+
+## Backup no OneDrive (plano B)
+
+Com a sincronização ligada, o backup serve só como cópia de segurança: salve um de vez em quando. Sem a sincronização, a regra é:
 
 1. **Terminou de mexer num aparelho?** Toque em **Salvar backup**. Quando há alterações não salvas, aparece um aviso amarelo no início do app.
    - No celular abre o "Compartilhar": escolha **OneDrive** → pasta Financeiro.

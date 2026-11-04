@@ -1,5 +1,8 @@
-// Ponte entre o app de Finanças e a Pluggy (Open Finance) — SOMENTE LEITURA.
-// Roda como Cloudflare Worker. As chaves da Pluggy ficam aqui, guardadas como "Secrets", nunca no app.
+// Ponte do app de Finanças. Roda como Cloudflare Worker e faz duas coisas:
+//  1) /sync  — busca os lançamentos do Nubank na Pluggy (Open Finance). SOMENTE LEITURA no banco.
+//  2) /dados — guarda a cópia dos dados do app para sincronizar PC e celular. A cópia chega
+//              CRIPTOGRAFADA pelo próprio app (senha da nuvem); a ponte não consegue ler o conteúdo.
+// As chaves da Pluggy ficam aqui, guardadas como "Secrets", nunca no app.
 //
 // Variáveis (Cloudflare → Worker → Settings → Variables and Secrets):
 //   PLUGGY_CLIENT_ID      (Secret)  Client ID da aplicação na Pluggy
@@ -8,11 +11,17 @@
 //   APP_TOKEN             (Secret)  senha da ponte (a mesma que vai em Config do app)
 //   ALLOWED_ORIGINS       (Text)    sites que podem chamar a ponte, separados por vírgula
 //                                   ex.: https://kethellynsoares.github.io
+//   DADOS                 (KV namespace binding)  armazenamento da sincronização entre aparelhos
 //
-// Uso: GET /sync  com o cabeçalho  Authorization: Bearer <APP_TOKEN>
+// Uso (sempre com o cabeçalho  Authorization: Bearer <APP_TOKEN>):
+//   GET /sync                      lançamentos do Nubank
+//   GET /dados[?rev=N]             cópia guardada: {rev, blob}  (com ?rev igual ao atual: {rev, igual:true}, sem o blob)
+//   PUT /dados  {base, blob}       grava se base == rev atual -> {rev}; senão 409 com {rev, blob} para o app juntar
 
 const API = 'https://api.pluggy.ai';
 const DIAS_HISTORICO = 400;
+const CHAVE_KV = 'dados';
+const MAX_BLOB = 20 * 1024 * 1024; // 20 MB (o KV aceita até 25 MB por valor)
 
 export default {
   async fetch(req, env) {
@@ -22,7 +31,7 @@ export default {
     const cors = origemOk ? {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
       'Access-Control-Max-Age': '86400',
       'Vary': 'Origin',
     } : {};
@@ -34,16 +43,28 @@ export default {
     if (!origemOk) return json({ erro: 'Site não autorizado a usar a ponte.' }, 403);
 
     const url = new URL(req.url);
-    if (req.method !== 'GET' || url.pathname !== '/sync') return json({ erro: 'Endereço não encontrado.' }, 404);
+    const rota = url.pathname.replace(/\/+$/, '');
+    const ok = (req.method === 'GET' && rota === '/sync') || ((req.method === 'GET' || req.method === 'PUT') && rota === '/dados');
+    if (!ok) return json({ erro: 'Endereço não encontrado.' }, 404);
 
-    for (const k of ['PLUGGY_CLIENT_ID', 'PLUGGY_CLIENT_SECRET', 'PLUGGY_ITEM_ID', 'APP_TOKEN']) {
-      if (!env[k]) return json({ erro: `A ponte está sem a variável ${k}.` }, 500);
-    }
+    if (!env.APP_TOKEN) return json({ erro: 'A ponte está sem a variável APP_TOKEN.' }, 500);
     if (!(await mesmaSenha(req.headers.get('Authorization') || '', 'Bearer ' + env.APP_TOKEN))) {
       await new Promise(r => setTimeout(r, 800));
       return json({ erro: 'Senha da ponte incorreta (Config do app).' }, 401);
     }
 
+    if (rota === '/dados') {
+      if (!env.DADOS) return json({ erro: 'A ponte está sem o armazenamento DADOS (KV). Veja o LEIA-ME da ponte.' }, 500);
+      try {
+        return await dados(req, env, url, json);
+      } catch (e) {
+        return json({ erro: 'Falha no armazenamento da ponte: ' + (e && e.message ? e.message : e) }, 500);
+      }
+    }
+
+    for (const k of ['PLUGGY_CLIENT_ID', 'PLUGGY_CLIENT_SECRET', 'PLUGGY_ITEM_ID']) {
+      if (!env[k]) return json({ erro: `A ponte está sem a variável ${k}.` }, 500);
+    }
     try {
       return json(await coletar(env));
     } catch (e) {
@@ -51,6 +72,28 @@ export default {
     }
   },
 };
+
+// Sincronização entre aparelhos. Guarda só o texto criptografado que o app manda e um número de versão (rev).
+// Quem tentar gravar em cima de uma versão que não viu recebe 409 com a versão atual, junta no app e tenta de novo.
+async function dados(req, env, url, json) {
+  const atual = (await env.DADOS.get(CHAVE_KV, { type: 'json' })) || { rev: 0, blob: null };
+  if (req.method === 'GET') {
+    const visto = url.searchParams.get('rev');
+    if (visto !== null && +visto === atual.rev && atual.rev > 0) return json({ rev: atual.rev, igual: true });
+    return json({ rev: atual.rev, blob: atual.blob, em: atual.em || '' });
+  }
+  const tam = +(req.headers.get('Content-Length') || 0);
+  if (tam > MAX_BLOB) return json({ erro: 'Dados grandes demais para a ponte.' }, 413);
+  let corpo;
+  try { corpo = await req.json(); } catch (e) { return json({ erro: 'Envio inválido.' }, 400); }
+  if (!corpo || typeof corpo.blob !== 'string' || !corpo.blob || corpo.blob.length > MAX_BLOB || !Number.isInteger(corpo.base)) {
+    return json({ erro: 'Envio inválido.' }, 400);
+  }
+  if (corpo.base !== atual.rev) return json({ erro: 'Há uma versão mais nova na nuvem.', rev: atual.rev, blob: atual.blob }, 409);
+  const novo = { rev: atual.rev + 1, blob: corpo.blob, em: new Date().toISOString() };
+  await env.DADOS.put(CHAVE_KV, JSON.stringify(novo));
+  return json({ rev: novo.rev, em: novo.em });
+}
 
 // Compara a senha sem vazar tempo (hash + comparação de tempo constante)
 async function mesmaSenha(a, b) {
